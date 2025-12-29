@@ -1,11 +1,71 @@
--- [[ PART 3: UI ]] --
+-- [[ PART 3: UI & EXPLOITS ]] --
 local Env = getgenv().PL_Hub
 if not Env then return warn("Load Part 1 First!") end
 
 local HttpService = Env.Services.HttpService
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local ReplicatedStorage = Env.Services.ReplicatedStorage
+local Players = Env.Services.Players
+local LocalPlayer = Players.LocalPlayer
+local RunService = Env.Services.RunService
 
--- // CONFIG SYSTEM //
+-- // 1. INITIALIZE NEW SETTINGS //
+if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
+if Env.cfg.punchaura == nil then Env.cfg.punchaura = false end
+
+-- // 2. AURA LOGIC LOOP (Auto Arrest & Punch) //
+RunService.Heartbeat:Connect(function()
+    if not Env.cfg.autoarrest and not Env.cfg.punchaura then return end
+
+    local myChar = LocalPlayer.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return end
+
+    for _, target in ipairs(Players:GetPlayers()) do
+        if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHrp = target.Character.HumanoidRootPart
+            local dist = (targetHrp.Position - myHrp.Position).Magnitude
+
+            -- Max Range: 25 Studs
+            if dist <= 25 then
+                
+                -- [ AUTO ARREST LOGIC ]
+                if Env.cfg.autoarrest then
+                    if LocalPlayer.Team == Env.Teams.Guards then
+                        if target.Team == Env.Teams.Criminals or target.Team == Env.Teams.Inmates then
+                            if not target.Character:FindFirstChild("ForceField") then
+                                -- Use task.spawn so InvokeServer doesn't freeze the game
+                                task.spawn(function()
+                                    pcall(function()
+                                        local args = { [1] = target.Character.HumanoidRootPart }
+                                        -- Try standard arrest remote first (commonly usually HumanoidRootPart or Player)
+                                        -- Based on your snippet, you passed the Player, but usually arrest takes the RootPart. 
+                                        -- I will try the standard RootPart method based on standard PL scripts, 
+                                        -- but if your specific remote needs the Player object, swap the arg below.
+                                        ReplicatedStorage.Remotes.ArrestPlayer:InvokeServer(target) 
+                                    end)
+                                end)
+                            end
+                        end
+                    end
+                end
+
+                -- [ PUNCH AURA LOGIC ]
+                if Env.cfg.punchaura then
+                    if target.Team ~= LocalPlayer.Team then
+                        if not target.Character:FindFirstChild("ForceField") then
+                            -- MeleeEvent usually takes the Player object
+                            local args = { [1] = target }
+                            ReplicatedStorage.meleeEvent:FireServer(unpack(args))
+                        end
+                    end
+                end
+
+            end
+        end
+    end
+end)
+
+-- // 3. CONFIGURATION SYSTEM //
 local configFolder = "SilentAimConfigs"
 local function serializeColor3(color) return {R = color.R, G = color.G, B = color.B} end
 local function deserializeColor3(tbl)
@@ -68,7 +128,9 @@ local function loadConfig(name)
     return true
 end
 
--- // THEME & WINDOW //
+-- // 4. RAYFIELD UI SETUP //
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local customTheme = {
     TextColor = Color3.fromRGB(255, 255, 255),
     Background = Color3.fromRGB(20, 20, 35),
@@ -112,12 +174,14 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false,
 })
 
+-- // TABS //
 local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
 local ESPTab = Window:CreateTab("ESP", 4483362458)
 local AutoshootTab = Window:CreateTab("Autoshoot", 4483362458)
+local ExploitsTab = Window:CreateTab("Exploits", 4483362458) -- NEW TAB
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
--- // AIMBOT TAB //
+-- // AIMBOT TAB CONTENT //
 local MainAimSection = AimbotTab:CreateSection("Main")
 AimbotTab:CreateToggle({Name = "Silent Aim", CurrentValue = Env.cfg.enabled, Flag = "SilentAim", Callback = function(v) Env.cfg.enabled = v end})
 AimbotTab:CreateToggle({Name = "Team Check", CurrentValue = Env.cfg.teamcheck, Callback = function(v) Env.cfg.teamcheck = v end})
@@ -141,7 +205,7 @@ local ShieldSection = AimbotTab:CreateSection("Shield Breaker")
 AimbotTab:CreateToggle({Name = "Shield Breaker", CurrentValue = Env.cfg.shieldbreaker, Callback = function(v) Env.cfg.shieldbreaker = v end})
 AimbotTab:CreateSlider({Name = "Shield Head Chance", Range = {0, 100}, Increment = 1, Suffix = "%", CurrentValue = Env.cfg.shieldheadchance, Callback = function(v) Env.cfg.shieldheadchance = v end})
 
--- // ESP TAB //
+-- // ESP TAB CONTENT //
 local ESPMainSection = ESPTab:CreateSection("Main")
 ESPTab:CreateToggle({Name = "Enable ESP", CurrentValue = Env.cfg.esp, Callback = function(v) Env.cfg.esp = v; Env.updateEsp() end})
 ESPTab:CreateToggle({Name = "Team Check", CurrentValue = Env.cfg.espteamcheck, Callback = function(v) Env.cfg.espteamcheck = v; Env.updateEsp() end})
@@ -157,17 +221,36 @@ local C4Section = ESPTab:CreateSection("C4 ESP")
 ESPTab:CreateToggle({Name = "C4 ESP", CurrentValue = Env.cfg.c4esp, Callback = function(v) Env.cfg.c4esp = v; Env.updateC4Esp() end})
 ESPTab:CreateColorPicker({Name = "C4 Color", Color = Env.cfg.c4espcolor, Callback = function(v) Env.cfg.c4espcolor = v; Env.updateC4Esp() end})
 
--- // AUTOSHOOT TAB //
+-- // AUTOSHOOT TAB CONTENT //
 local AutoShootSection = AutoshootTab:CreateSection("Configuration")
 AutoshootTab:CreateToggle({Name = "Enabled", CurrentValue = Env.cfg.autoshoot, Callback = function(v) Env.cfg.autoshoot = v end})
 AutoshootTab:CreateSlider({Name = "Shot Delay", Range = {0.05, 0.5}, Increment = 0.01, Suffix = "s", CurrentValue = Env.cfg.autoshootdelay, Callback = function(v) Env.cfg.autoshootdelay = v end})
 AutoshootTab:CreateSlider({Name = "Start Delay", Range = {0, 1}, Increment = 0.05, Suffix = "s", CurrentValue = Env.cfg.autoshootstartdelay, Callback = function(v) Env.cfg.autoshootstartdelay = v end})
 
--- // SETTINGS TAB //
+-- // EXPLOITS TAB CONTENT (NEW) //
+local ExploitsSection = ExploitsTab:CreateSection("Auras")
+
+ExploitsTab:CreateToggle({
+    Name = "Auto Arrest (Guards Only)",
+    CurrentValue = Env.cfg.autoarrest,
+    Callback = function(Value)
+        Env.cfg.autoarrest = Value
+    end,
+})
+
+ExploitsTab:CreateToggle({
+    Name = "Punch Aura (25 Studs)",
+    CurrentValue = Env.cfg.punchaura,
+    Callback = function(Value)
+        Env.cfg.punchaura = Value
+    end,
+})
+
+-- // SETTINGS TAB CONTENT //
 local configNameInput = ""
 SettingsTab:CreateInput({Name = "Config Name", PlaceholderText = "Enter config name...", RemoveTextAfterFocusLost = false, Callback = function(t) configNameInput = t end})
 SettingsTab:CreateButton({Name = "Save Config", Callback = function() if configNameInput == "" then Rayfield:Notify({Title = "Config", Content = "Please enter a config name!", Duration = 3}) return end if saveConfig(configNameInput) then Rayfield:Notify({Title = "Config", Content = "Saved config: " .. configNameInput, Duration = 3}) else Rayfield:Notify({Title = "Config", Content = "Failed to save config!", Duration = 3}) end end})
 SettingsTab:CreateButton({Name = "Load Config", Callback = function() if configNameInput == "" then Rayfield:Notify({Title = "Config", Content = "Please enter a config name!", Duration = 3}) return end if loadConfig(configNameInput) then Rayfield:Notify({Title = "Config", Content = "Loaded config: " .. configNameInput, Duration = 3}) else Rayfield:Notify({Title = "Config", Content = "Config not found!", Duration = 3}) end end})
-SettingsTab:CreateButton({Name = "Reset Defaults", Callback = function() Env.cfg.enabled = true Env.cfg.teamcheck = false Env.cfg.esp = false Env.updateEsp() Rayfield:Notify({Title = "Config", Content = "Reset to defaults", Duration = 3}) end})
+SettingsTab:CreateButton({Name = "Reset Defaults", Callback = function() Env.cfg.enabled = true Env.cfg.teamcheck = false Env.cfg.esp = false Env.cfg.autoarrest = false Env.cfg.punchaura = false Env.updateEsp() Rayfield:Notify({Title = "Config", Content = "Reset to defaults", Duration = 3}) end})
 
-Rayfield:Notify({Title = "Loaded", Content = "NaphtaHub v" .. Env.Version .. " Welcome!", Duration = 5})
+Rayfield:Notify({Title = "Loaded", Content = "Casual Coma v" .. Env.Version .. " Welcome!", Duration = 5})
