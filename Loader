@@ -1,0 +1,63 @@
+local CoreGui = game:GetService("CoreGui")
+
+-- Load main script
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Nahalliaa/CasualComas/refs/heads/main/CasualComasPremium.luau"))()
+
+-- Style the Rayfield prompt
+task.spawn(function()
+    task.wait(0.5)
+
+    local function findRayfield()
+        for _, gui in ipairs(CoreGui:GetChildren()) do
+            local rf = gui:FindFirstChild("Rayfield")
+            if rf then return rf end
+        end
+    end
+
+    local function apply()
+        local rayfield = findRayfield()
+        if not rayfield then return end
+
+        local prompt = rayfield:FindFirstChild("Prompt")
+        if not prompt then return end
+
+        if prompt:IsA("Frame") or prompt:IsA("TextButton") or prompt:IsA("ImageButton") then
+            prompt.BackgroundColor3 = Color3.fromRGB(18, 15, 30)
+            
+            -- Add shadow
+            if not prompt:FindFirstChild("Shadow") then
+                local shadow = Instance.new("ImageLabel")
+                shadow.Name = "Shadow"
+                shadow.Size = UDim2.new(1, 30, 1, 30)
+                shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+                shadow.BackgroundTransparency = 1
+                shadow.Image = "rbxassetid://6014261993"
+                shadow.ImageColor3 = Color3.fromRGB(4, 2, 8)
+                shadow.ImageTransparency = 0.5
+                shadow.ZIndex = prompt.ZIndex - 1
+                shadow.Parent = prompt
+            end
+
+            -- Add stroke outline
+            if not prompt:FindFirstChild("UIStroke") then
+                local stroke = Instance.new("UIStroke")
+                stroke.Color = Color3.fromRGB(65, 55, 90)
+                stroke.Thickness = 2
+                stroke.Parent = prompt
+            end
+        end
+
+        local title = prompt:FindFirstChild("Title")
+        if title and title:IsA("TextLabel") then
+            title.Text = "Casual Comas"
+            title.TextColor3 = Color3.fromRGB(245, 240, 255)
+        end
+    end
+
+    apply()
+
+    while task.wait(1.5) do
+        apply()
+    end
+end)
