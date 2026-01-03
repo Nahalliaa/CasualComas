@@ -1,6 +1,12 @@
 --[[ 
-    Casual Comas // Cloud Edition
+    Casual Comas // Cloud Edition (Fixed)
     "Soft as a cloud, hits like a coma."
+    
+    Changelog:
+    - Fixed 2 FPS bug (Optimized Grab Loop)
+    - Added RayBeats Mobile Haptics
+    - Fixed RichText (<b> tags showing)
+    - Optimized Sound Engine
 ]]
 
 local Env = getgenv().PL_Hub
@@ -13,9 +19,46 @@ local Players = Env.Services.Players
 local LocalPlayer = Players.LocalPlayer
 local RunService = Env.Services.RunService
 local SoundService = game:GetService("SoundService")
-local HapticService = game:GetService("HapticService")
-local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+--// RayBeats Style Asset Loader (Prevent lag by pre-loading)
+local Sounds = {
+    Click = Instance.new("Sound"),
+    Hover = Instance.new("Sound"),
+    Notification = Instance.new("Sound"),
+    Error = Instance.new("Sound"),
+    Success = Instance.new("Sound")
+}
+
+Sounds.Click.SoundId = "rbxassetid://6895079853"
+Sounds.Hover.SoundId = "rbxassetid://6895079775"
+Sounds.Notification.SoundId = "rbxassetid://4590662766"
+Sounds.Error.SoundId = "rbxassetid://4590657391"
+Sounds.Success.SoundId = "rbxassetid://6895079853"
+
+for _, s in pairs(Sounds) do s.Volume = 1; s.Parent = SoundService end
+
+local function PlaySound(snd)
+    if snd then snd:Play() end
+end
+
+local function TriggerVibration()
+    --// RayBeats Haptic Method (Works on Mobile/Console)
+    task.spawn(function()
+        pcall(function()
+            local vib = Instance.new("HapticEffect")
+            vib.Name = "CloudHaptic"
+            vib.Type = Enum.HapticEffectType.GameplayExplosion
+            vib.Looped = false
+            vib.Parent = Workspace
+            vib:Play()
+            task.wait(0.2)
+            vib:Destroy()
+        end)
+    end)
+end
 
 --// Initial Config Checks
 if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
@@ -30,36 +73,6 @@ if Env.cfg.autograb == nil then Env.cfg.autograb = false end
 if Env.cfg.autoshoot == nil then Env.cfg.autoshoot = false end
 if Env.cfg.shieldbreaker == nil then Env.cfg.shieldbreaker = false end
 if Env.cfg.c4esp == nil then Env.cfg.c4esp = false end
-
---// Audio & Haptic System (RayBeats Style)
-local Sounds = {
-    Click = 6895079853,
-    Hover = 6895079775,
-    Notification = 4590662766,
-    Error = 4590657391,
-    Success = 6895079853
-}
-
-local function PlaySound(id)
-    task.spawn(function()
-        local sound = Instance.new("Sound")
-        sound.SoundId = "rbxassetid://" .. id
-        sound.Volume = 1
-        sound.Parent = SoundService
-        sound:Play()
-        sound.Ended:Wait()
-        sound:Destroy()
-    end)
-end
-
-local function TriggerVibration()
-    -- Only works if user has a controller connected, adds that "premium" feel
-    if HapticService:IsVibrationSupported(Enum.UserInputType.Gamepad1) then
-        HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.5)
-        task.wait(0.1)
-        HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
-    end
-end
 
 --// Logic Handlers
 local noclipConnection = nil
@@ -106,22 +119,25 @@ local grab_dist_sq = 12 * 12
 local last_grab = 0
 local giver_remote = ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("GiverPressed")
 local grab_cache = {}
-local cache_update_interval = 2
+local cache_update_interval = 3 -- Increased delay to save FPS
 local last_cache_update = 0
 
 local function updateGrabCache()
     grab_cache = {}
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj.Name:lower():find("keycard") or obj.Name == "M9") then
+    --// OPTIMIZATION: Only search Children, not Descendants (Fixes 2 FPS issue)
+    local items = Workspace:GetChildren()
+    for _, obj in pairs(items) do
+        if obj:IsA("Model") and (obj.Name:lower():find("keycard") or obj.Name == "M9" or obj.Name == "Remington 870" or obj.Name == "AK-47") then
             local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
             if part then
                 local isOwned = false
                 local anc = obj.Parent
-                while anc and anc ~= Workspace do
-                    if anc:FindFirstChild("Humanoid") or anc.Name == "Backpack" then isOwned = true break end
-                    anc = anc.Parent
+                -- Quick check if it's being held
+                if anc and (anc:FindFirstChild("Humanoid") or anc.Name == "Backpack") then isOwned = true end
+                
+                if not isOwned then 
+                    table.insert(grab_cache, {model = obj, part = part}) 
                 end
-                if not isOwned then table.insert(grab_cache, {model = obj, part = part}) end
             end
         end
     end
@@ -155,20 +171,23 @@ RunService.Heartbeat:Connect(function()
     end
 
     if (Env.cfg.autoarrest or Env.cfg.punchaura) and myHrp then
-        for _, target in ipairs(Players:GetPlayers()) do
-            if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                local targetHrp = target.Character.HumanoidRootPart
-                local dist = (targetHrp.Position - myHrp.Position).Magnitude
-                if dist <= 25 then
-                    if Env.cfg.autoarrest and LocalPlayer.Team == Env.Teams.Guards then
-                        if target.Team == Env.Teams.Criminals or target.Team == Env.Teams.Inmates then
-                            if not target.Character:FindFirstChild("ForceField") then
-                                task.spawn(function() pcall(function() ReplicatedStorage.Remotes.ArrestPlayer:InvokeServer(target.Character.HumanoidRootPart) end) end)
+        --// OPTIMIZATION: Throttled loop for combat
+        if tick() % 0.1 < 0.02 then 
+            for _, target in ipairs(Players:GetPlayers()) do
+                if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetHrp = target.Character.HumanoidRootPart
+                    local dist = (targetHrp.Position - myHrp.Position).Magnitude
+                    if dist <= 25 then
+                        if Env.cfg.autoarrest and LocalPlayer.Team == Env.Teams.Guards then
+                            if target.Team == Env.Teams.Criminals or target.Team == Env.Teams.Inmates then
+                                if not target.Character:FindFirstChild("ForceField") then
+                                    task.spawn(function() pcall(function() ReplicatedStorage.Remotes.ArrestPlayer:InvokeServer(target.Character.HumanoidRootPart) end) end)
+                                end
                             end
                         end
-                    end
-                    if Env.cfg.punchaura and target.Team ~= LocalPlayer.Team then
-                        if not target.Character:FindFirstChild("ForceField") then ReplicatedStorage.meleeEvent:FireServer(target) end
+                        if Env.cfg.punchaura and target.Team ~= LocalPlayer.Team then
+                            if not target.Character:FindFirstChild("ForceField") then ReplicatedStorage.meleeEvent:FireServer(target) end
+                        end
                     end
                 end
             end
@@ -230,15 +249,43 @@ end
 --// UI Library Initialization
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
---// Override Notify to include Sound & Vibration
+--// THE FIX: Force RichText on all Rayfield Elements
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local gui = CoreGui:FindFirstChild("Rayfield")
+        if gui then
+            for _, v in pairs(gui:GetDescendants()) do
+                if v:IsA("TextLabel") and not v.RichText then
+                    v.RichText = true
+                end
+            end
+        end
+    end
+end)
+
+--// Override Notify for Sound/Haptics & RichText
 local originalNotify = Rayfield.Notify
 Rayfield.Notify = function(self, options)
     PlaySound(Sounds.Notification)
     TriggerVibration()
-    return originalNotify(self, options)
+    
+    local notif = originalNotify(self, options)
+    
+    -- Force RichText on Notification immediately
+    task.spawn(function()
+        task.wait()
+        if notif then
+            for _, v in pairs(notif:GetDescendants()) do
+                if v:IsA("TextLabel") then v.RichText = true end
+            end
+        end
+    end)
+    
+    return notif
 end
 
---// THEME: NIGHT SKY (Professional Dark Purple & Soft Pink)
+--// THEME: NIGHT SKY (Dark Violet & Soft Pink)
 local NightSky = {
     TextColor                     = Color3.fromRGB(240, 230, 245), 
     PlaceholderColor              = Color3.fromRGB(120, 110, 130),
@@ -252,7 +299,7 @@ local NightSky = {
 
     TabBackground                 = Color3.fromRGB(35, 30, 45),
     TabStroke                     = Color3.fromRGB(55, 45, 65),
-    TabBackgroundSelected         = Color3.fromRGB(255, 145, 175), -- Cloud Pink
+    TabBackgroundSelected         = Color3.fromRGB(255, 145, 175),
     TabTextColor                  = Color3.fromRGB(240, 230, 245),
     SelectedTabTextColor          = Color3.fromRGB(20, 18, 28),    
 
@@ -285,7 +332,7 @@ local Window = Rayfield:CreateWindow({
     Name = "Casual Comas",
     LoadingTitle = "Casual Comas",
     LoadingSubtitle = "v" .. Env.Version,
-    Icon = "cloud-fog", -- Temporary Cloud Logo
+    Icon = "cloud-fog",
     Theme = NightSky,
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
@@ -298,7 +345,7 @@ local VisualsTab = Window:CreateTab("Visuals", "eye")
 local MovementTab = Window:CreateTab("Movement", "footprints")
 local UtilityTab = Window:CreateTab("Utility", "zap")
 local ConfigTab = Window:CreateTab("Settings", "settings")
-local CreditsTab = Window:CreateTab("Credits", "info") -- New Credits Tab
+local CreditsTab = Window:CreateTab("Credits", "info")
 
 --// COMBAT TAB //--
 CombatTab:CreateSection("Targeting")
@@ -515,7 +562,7 @@ UtilityTab:CreateButton({
             end
         end
         if #x > 0 then
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, x[math.random(1, #x)], LocalPlayer)
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, x[math.random(1, #x)], LocalPlayer)
         else
             Rayfield:Notify({Title = "Server", Content = "No other servers found.", Image = "alert-circle"})
         end
@@ -526,10 +573,9 @@ UtilityTab:CreateButton({
     Name = "Rejoin Server",
     Callback = function()
         PlaySound(Sounds.Success)
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
 })
-
 
 --// CONFIG TAB //--
 ConfigTab:CreateSection("Configuration")
@@ -593,7 +639,7 @@ CreditsTab:CreateSection("Management")
 CreditsTab:CreateButton({
     Name = "Join Discord",
     Callback = function()
-        setclipboard("https://discord.gg/yourinvite") -- Replace with your link
+        setclipboard("https://discord.gg/yourinvite") 
         PlaySound(Sounds.Success)
         Rayfield:Notify({Title = "Discord", Content = "Invite copied to clipboard!", Image = "link", Duration = 3})
     end
@@ -604,7 +650,6 @@ CreditsTab:CreateButton({
     Callback = function()
         PlaySound(Sounds.Click)
         Rayfield:Destroy()
-        -- You would put your loadstring here if you have one
         Rayfield:Notify({Title = "Reload", Content = "Please re-execute the script.", Duration = 3})
     end
 })
