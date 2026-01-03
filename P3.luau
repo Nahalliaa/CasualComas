@@ -1,6 +1,13 @@
+--[[ 
+    Casual Comas // Lucid Dream Edition
+    Theme: Deep Sleep (Violet & Soft Pink)
+    "Entering the void..."
+]]
+
 local Env = getgenv().PL_Hub
 if not Env then return warn("Load Part 1 First!") end
 
+--// Services
 local HttpService = Env.Services.HttpService
 local ReplicatedStorage = Env.Services.ReplicatedStorage
 local Players = Env.Services.Players
@@ -8,6 +15,7 @@ local LocalPlayer = Players.LocalPlayer
 local RunService = Env.Services.RunService
 local Workspace = game:GetService("Workspace")
 
+--// Initial Config Checks
 if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
 if Env.cfg.punchaura == nil then Env.cfg.punchaura = false end
 if Env.cfg.ws_enabled == nil then Env.cfg.ws_enabled = false end
@@ -18,51 +26,42 @@ if Env.cfg.noclip == nil then Env.cfg.noclip = false end
 if Env.cfg.shootarrested == nil then Env.cfg.shootarrested = false end
 if Env.cfg.autograb == nil then Env.cfg.autograb = false end
 
+--// Logic Handlers
 local noclipConnection = nil
 local function updateNoclip()
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-    
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
     if Env.cfg.noclip then
         noclipConnection = RunService.Stepped:Connect(function()
             local char = LocalPlayer.Character
             if char then
                 for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end
         end)
     end
 end
 
+--// Character Collision Bypass
 task.spawn(function()
     pcall(function()
         local hook = newcclosure(function() return end)
         for _, obj in getgc(false) do 
             if typeof(obj) == "function" then 
                 local source = debug.info(obj, "s")
-                if source and source:find("CharacterCollision") then 
-                    hookfunction(obj, hook)
-                end
+                if source and source:find("CharacterCollision") then hookfunction(obj, hook) end
             end
         end
     end)
 end)
 
+--// Logic Loops
 task.spawn(function()
     while true do
         if Env.cfg.shootarrested then
             local rs = ReplicatedStorage
             local re = rs:FindFirstChild("Remotes") and rs.Remotes:FindFirstChild("ClientArrested")
-            if re then
-                for _, cn in pairs(getconnections(re.OnClientEvent)) do
-                    cn:Disable()
-                end
-            end
+            if re then for _, cn in pairs(getconnections(re.OnClientEvent)) do cn:Disable() end end
         end
         task.wait(1)
     end
@@ -84,16 +83,10 @@ local function updateGrabCache()
                 local isOwned = false
                 local anc = obj.Parent
                 while anc and anc ~= Workspace do
-                    if anc:FindFirstChild("Humanoid") or anc.Name == "Backpack" then 
-                        isOwned = true 
-                        break 
-                    end
+                    if anc:FindFirstChild("Humanoid") or anc.Name == "Backpack" then isOwned = true break end
                     anc = anc.Parent
                 end
-                
-                if not isOwned then
-                    table.insert(grab_cache, {model = obj, part = part})
-                end
+                if not isOwned then table.insert(grab_cache, {model = obj, part = part}) end
             end
         end
     end
@@ -111,12 +104,7 @@ RunService.Heartbeat:Connect(function()
 
     if Env.cfg.autograb and myHrp and giver_remote then
         local now = tick()
-        
-        if now - last_cache_update > cache_update_interval then
-            updateGrabCache()
-            last_cache_update = now
-        end
-        
+        if now - last_cache_update > cache_update_interval then updateGrabCache() last_cache_update = now end
         if now - last_grab > 0.5 then
             for _, cached in ipairs(grab_cache) do
                 if cached.model and cached.part and cached.part.Parent then
@@ -136,24 +124,16 @@ RunService.Heartbeat:Connect(function()
             if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
                 local targetHrp = target.Character.HumanoidRootPart
                 local dist = (targetHrp.Position - myHrp.Position).Magnitude
-
                 if dist <= 25 then
                     if Env.cfg.autoarrest and LocalPlayer.Team == Env.Teams.Guards then
                         if target.Team == Env.Teams.Criminals or target.Team == Env.Teams.Inmates then
                             if not target.Character:FindFirstChild("ForceField") then
-                                task.spawn(function()
-                                    pcall(function() 
-                                        ReplicatedStorage.Remotes.ArrestPlayer:InvokeServer(target.Character.HumanoidRootPart) 
-                                    end)
-                                end)
+                                task.spawn(function() pcall(function() ReplicatedStorage.Remotes.ArrestPlayer:InvokeServer(target.Character.HumanoidRootPart) end) end)
                             end
                         end
                     end
-
                     if Env.cfg.punchaura and target.Team ~= LocalPlayer.Team then
-                        if not target.Character:FindFirstChild("ForceField") then
-                            ReplicatedStorage.meleeEvent:FireServer(target)
-                        end
+                        if not target.Character:FindFirstChild("ForceField") then ReplicatedStorage.meleeEvent:FireServer(target) end
                     end
                 end
             end
@@ -161,61 +141,33 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+--// Config System
 local configFolder = "CasualComasConfigs"
-
-local function serializeColor3(color) 
-    return {R = color.R, G = color.G, B = color.B} 
-end
-
-local function deserializeColor3(tbl)
-    if tbl and tbl.R and tbl.G and tbl.B then 
-        return Color3.new(tbl.R, tbl.G, tbl.B) 
-    end
-    return Color3.new(1, 1, 1)
-end
+local function serializeColor3(color) return {R = color.R, G = color.G, B = color.B} end
+local function deserializeColor3(tbl) if tbl and tbl.R and tbl.G and tbl.B then return Color3.new(tbl.R, tbl.G, tbl.B) end return Color3.new(1, 1, 1) end
 
 local function serializeConfig()
     local data = {}
     for key, value in pairs(Env.cfg) do
-        if typeof(value) == "Color3" then 
-            data[key] = {type = "Color3", value = serializeColor3(value)}
-        elseif typeof(value) == "EnumItem" then 
-            data[key] = {type = "EnumItem", value = tostring(value)}
-        elseif typeof(value) == "table" then 
-            data[key] = {type = "table", value = value}
-        else 
-            data[key] = {type = typeof(value), value = value} 
-        end
+        if typeof(value) == "Color3" then data[key] = {type = "Color3", value = serializeColor3(value)}
+        elseif typeof(value) == "EnumItem" then data[key] = {type = "EnumItem", value = tostring(value)}
+        elseif typeof(value) == "table" then data[key] = {type = "table", value = value}
+        else data[key] = {type = typeof(value), value = value} end
     end
     return HttpService:JSONEncode(data)
 end
 
 local function deserializeConfig(jsonString)
-    local success, data = pcall(function() 
-        return HttpService:JSONDecode(jsonString) 
-    end)
+    local success, data = pcall(function() return HttpService:JSONDecode(jsonString) end)
     if not success then return nil end
-    
     local result = {}
     for key, entry in pairs(data) do
-        if entry.type == "Color3" then 
-            result[key] = deserializeColor3(entry.value)
+        if entry.type == "Color3" then result[key] = deserializeColor3(entry.value)
         elseif entry.type == "EnumItem" then
             local enumPath = entry.value:match("Enum%.(.+)")
-            if enumPath then
-                local parts = enumPath:split(".")
-                if #parts == 2 then
-                    local enumType = Enum[parts[1]]
-                    if enumType then 
-                        result[key] = enumType[parts[2]] 
-                    end
-                end
-            end
-        elseif entry.type == "table" then 
-            result[key] = entry.value
-        else 
-            result[key] = entry.value 
-        end
+            if enumPath then local parts = enumPath:split(".") if #parts == 2 then local enumType = Enum[parts[1]] if enumType then result[key] = enumType[parts[2]] end end end
+        elseif entry.type == "table" then result[key] = entry.value
+        else result[key] = entry.value end
     end
     return result
 end
@@ -223,8 +175,7 @@ end
 local function saveConfig(name)
     if not isfolder then return false end
     if not isfolder(configFolder) then makefolder(configFolder) end
-    local path = configFolder .. "/" .. name .. ".json"
-    writefile(path, serializeConfig())
+    writefile(configFolder .. "/" .. name .. ".json", serializeConfig())
     return true
 end
 
@@ -232,434 +183,300 @@ local function loadConfig(name)
     if not isfolder or not isfile then return false end
     local path = configFolder .. "/" .. name .. ".json"
     if not isfile(path) then return false end
-    local data = readfile(path)
-    local loaded = deserializeConfig(data)
+    local loaded = deserializeConfig(readfile(path))
     if not loaded then return false end
-    for key, value in pairs(loaded) do
-        if Env.cfg[key] ~= nil then 
-            Env.cfg[key] = value 
-        end
-    end
+    for key, value in pairs(loaded) do if Env.cfg[key] ~= nil then Env.cfg[key] = value end end
     if Env.updateEsp then Env.updateEsp() end
     if Env.updateC4Esp then Env.updateC4Esp() end
     updateNoclip()
     return true
 end
 
+--// UI Library Initialization
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local customTheme = {
-    TextColor = Color3.fromRGB(240, 235, 230),
-    Background = Color3.fromRGB(28, 24, 32),
-    Topbar = Color3.fromRGB(38, 32, 42),
-    Shadow = Color3.fromRGB(12, 10, 14),
-    NotificationBackground = Color3.fromRGB(42, 36, 48),
-    NotificationActionsBackground = Color3.fromRGB(52, 44, 58),
-    TabBackground = Color3.fromRGB(35, 30, 40),
-    TabStroke = Color3.fromRGB(65, 55, 75),
-    TabBackgroundSelected = Color3.fromRGB(58, 48, 68),
-    TabTextColor = Color3.fromRGB(180, 170, 165),
-    SelectedTabTextColor = Color3.fromRGB(245, 235, 225),
-    ElementBackground = Color3.fromRGB(40, 35, 45),
-    ElementBackgroundHover = Color3.fromRGB(50, 43, 57),
-    SecondaryElementBackground = Color3.fromRGB(38, 33, 43),
-    ElementStroke = Color3.fromRGB(70, 60, 80),
-    SecondaryElementStroke = Color3.fromRGB(60, 52, 68),
-    SliderBackground = Color3.fromRGB(55, 48, 65),
-    SliderProgress = Color3.fromRGB(180, 130, 200),
-    SliderStroke = Color3.fromRGB(85, 75, 95),
-    ToggleBackground = Color3.fromRGB(40, 35, 45),
-    ToggleEnabled = Color3.fromRGB(165, 120, 185),
-    ToggleDisabled = Color3.fromRGB(75, 68, 82),
-    ToggleEnabledStroke = Color3.fromRGB(190, 140, 210),
-    ToggleDisabledStroke = Color3.fromRGB(55, 50, 60),
-    ToggleEnabledOuterStroke = Color3.fromRGB(50, 45, 55),
-    ToggleDisabledOuterStroke = Color3.fromRGB(40, 36, 44),
-    DropdownSelected = Color3.fromRGB(52, 44, 60),
-    DropdownUnselected = Color3.fromRGB(40, 35, 45),
-    InputBackground = Color3.fromRGB(38, 33, 43),
-    InputStroke = Color3.fromRGB(68, 58, 78),
-    PlaceholderColor = Color3.fromRGB(140, 130, 135)
+--// THEME: LUCID HAZE (Dark Violet & Soft Pink)
+local LucidHaze = {
+    TextColor                     = Color3.fromRGB(240, 230, 245), -- White with slight purple tint
+    PlaceholderColor              = Color3.fromRGB(120, 110, 130),
+
+    Background                    = Color3.fromRGB(20, 18, 28),    -- Deep Void Purple
+    Topbar                        = Color3.fromRGB(26, 22, 35),    -- Slightly Lighter Violet
+    Shadow                        = Color3.fromRGB(10, 8, 15),     -- Dark Shadow
+
+    NotificationBackground        = Color3.fromRGB(26, 22, 35),
+    NotificationActionsBackground = Color3.fromRGB(35, 30, 45),
+
+    TabBackground                 = Color3.fromRGB(35, 30, 45),
+    TabStroke                     = Color3.fromRGB(55, 45, 65),
+    TabBackgroundSelected         = Color3.fromRGB(255, 145, 175), -- Soft Pink (The Coma)
+    TabTextColor                  = Color3.fromRGB(240, 230, 245),
+    SelectedTabTextColor          = Color3.fromRGB(20, 18, 28),    -- Contrast for Pink
+
+    ElementBackground             = Color3.fromRGB(30, 26, 40),
+    ElementBackgroundHover        = Color3.fromRGB(40, 34, 55),
+    SecondaryElementBackground    = Color3.fromRGB(26, 22, 35),
+    ElementStroke                 = Color3.fromRGB(60, 50, 75),
+    SecondaryElementStroke        = Color3.fromRGB(50, 40, 60),
+
+    SliderBackground              = Color3.fromRGB(45, 40, 60),
+    SliderProgress                = Color3.fromRGB(255, 145, 175), -- Soft Pink
+    SliderStroke                  = Color3.fromRGB(70, 60, 90),
+
+    ToggleBackground              = Color3.fromRGB(30, 26, 40),
+    ToggleEnabled                 = Color3.fromRGB(255, 145, 175), -- Soft Pink
+    ToggleDisabled                = Color3.fromRGB(80, 70, 90),
+    ToggleEnabledStroke           = Color3.fromRGB(255, 160, 190),
+    ToggleDisabledStroke          = Color3.fromRGB(60, 50, 70),
+    ToggleEnabledOuterStroke      = Color3.fromRGB(70, 60, 80),
+    ToggleDisabledOuterStroke     = Color3.fromRGB(45, 35, 55),
+
+    DropdownSelected              = Color3.fromRGB(40, 34, 55),
+    DropdownUnselected            = Color3.fromRGB(30, 26, 40),
+
+    InputBackground               = Color3.fromRGB(30, 26, 40),
+    InputStroke                   = Color3.fromRGB(60, 50, 75)
+}
+
+local ComaTitles = {
+    "Drifting into unconsciousness...",
+    "Fading reality...",
+    "Entering REM cycle...",
+    "Disconnecting form...",
+    "Injecting Casual Comas...",
+    "Waking the nightmare...",
+    "Lucid Dream initiated...",
+    "Dissociating..."
 }
 
 local Window = Rayfield:CreateWindow({
     Name = "Casual Comas",
-    LoadingTitle = "Casual Comas Hub",
-    LoadingSubtitle = "v" .. Env.Version,
-    Theme = customTheme,
+    LoadingTitle = ComaTitles[math.random(1, #ComaTitles)],
+    LoadingSubtitle = "v" .. Env.Version .. " // Dream State",
+    Theme = LucidHaze,
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
+    DisableRayfieldPrompts = true,
 })
 
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-local VisualsTab = Window:CreateTab("Visuals", 4483362458)
-local MovementTab = Window:CreateTab("Movement", 4483362458)
-local UtilityTab = Window:CreateTab("Utility", 4483362458)
-local ConfigTab = Window:CreateTab("Config", 4483362458)
+--// Tabs
+local CombatTab = Window:CreateTab("Violence", "sword") -- "Combat" is boring. Violence fits the "bad dream" vibe.
+local VisualsTab = Window:CreateTab("Hallucinations", "eye") -- "Visuals" -> Hallucinations
+local MovementTab = Window:CreateTab("Sleepwalk", "footprints") -- "Movement" -> Sleepwalk
+local UtilityTab = Window:CreateTab("Lucidity", "zap") -- "Utility" -> Lucidity
+local ConfigTab = Window:CreateTab("Memory", "save") -- "Config" -> Memory
 
-CombatTab:CreateSection("Silent Aim")
+--// COMBAT TAB //--
+CombatTab:CreateSection("Targeting")
+
 CombatTab:CreateToggle({
-    Name = "Enable Silent Aim", 
+    Name = "<b>Silent Aim</b> <font color='#ff99bb'>Hazy Hit</font>", 
     CurrentValue = Env.cfg.enabled, 
     Callback = function(v) Env.cfg.enabled = v end
 })
+
 CombatTab:CreateSlider({
-    Name = "FOV Radius", 
+    Name = "FOV Radius <font transparency='0.6'>Vision Blur</font>", 
     Range = {10, 500}, 
     Increment = 1, 
     Suffix = "px", 
     CurrentValue = Env.cfg.fov, 
     Callback = function(v) Env.cfg.fov = v end
 })
+
 CombatTab:CreateToggle({
-    Name = "Show FOV Circle", 
+    Name = "Show FOV <font transparency='0.6'>Draw Circle</font>", 
     CurrentValue = Env.cfg.showfov, 
     Callback = function(v) Env.cfg.showfov = v end
 })
-CombatTab:CreateSlider({
-    Name = "Hit Chance", 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = Env.cfg.hitchance, 
-    Callback = function(v) Env.cfg.hitchance = v end
-})
+
 CombatTab:CreateDropdown({
-    Name = "Target Part", 
+    Name = "Target Limb", 
     Options = Env.cfg.partslist, 
     CurrentOption = {Env.cfg.aimpart}, 
     MultipleOptions = false, 
     Callback = function(o) Env.cfg.aimpart = o[1] end
 })
-CombatTab:CreateToggle({
-    Name = "Random Parts", 
-    CurrentValue = Env.cfg.randomparts, 
-    Callback = function(v) Env.cfg.randomparts = v end
-})
 
-CombatTab:CreateSection("Targeting")
+CombatTab:CreateDivider()
+
+CombatTab:CreateSection("Safety Checks")
+
 CombatTab:CreateToggle({
-    Name = "Team Check", 
+    Name = "Team Check <font transparency='0.6'>Friendly Fire</font>", 
     CurrentValue = Env.cfg.teamcheck, 
     Callback = function(v) Env.cfg.teamcheck = v end
 })
+
 CombatTab:CreateToggle({
-    Name = "Wall Check", 
+    Name = "Wall Check <font transparency='0.6'>Visible Only</font>", 
     CurrentValue = Env.cfg.wallcheck, 
     Callback = function(v) Env.cfg.wallcheck = v end
 })
-CombatTab:CreateToggle({
-    Name = "Death Check", 
-    CurrentValue = Env.cfg.deathcheck, 
-    Callback = function(v) Env.cfg.deathcheck = v end
-})
-CombatTab:CreateToggle({
-    Name = "ForceField Check", 
-    CurrentValue = Env.cfg.ffcheck, 
-    Callback = function(v) Env.cfg.ffcheck = v end
-})
-CombatTab:CreateToggle({
-    Name = "Vehicle Check", 
-    CurrentValue = Env.cfg.vehiclecheck, 
-    Callback = function(v) Env.cfg.vehiclecheck = v end
-})
-CombatTab:CreateToggle({
-    Name = "Hostile Check (Guards)", 
-    CurrentValue = Env.cfg.hostilecheck, 
-    Callback = function(v) Env.cfg.hostilecheck = v end
-})
-CombatTab:CreateToggle({
-    Name = "Trespass Check (Guards)", 
-    CurrentValue = Env.cfg.trespasscheck, 
-    Callback = function(v) Env.cfg.trespasscheck = v end
-})
 
-CombatTab:CreateSection("Automation")
+CombatTab:CreateSection("Aggression")
+
 CombatTab:CreateToggle({
-    Name = "Auto Shoot", 
-    CurrentValue = Env.cfg.autoshoot, 
-    Callback = function(v) Env.cfg.autoshoot = v end
-})
-CombatTab:CreateSlider({
-    Name = "Shot Delay", 
-    Range = {0.05, 0.5}, 
-    Increment = 0.01, 
-    Suffix = "s", 
-    CurrentValue = Env.cfg.autoshootdelay, 
-    Callback = function(v) Env.cfg.autoshootdelay = v end
-})
-CombatTab:CreateSlider({
-    Name = "Start Delay", 
-    Range = {0, 1}, 
-    Increment = 0.05, 
-    Suffix = "s", 
-    CurrentValue = Env.cfg.autoshootstartdelay, 
-    Callback = function(v) Env.cfg.autoshootstartdelay = v end
-})
-CombatTab:CreateToggle({
-    Name = "Auto Arrest (Guard)", 
+    Name = "Auto Arrest <font color='#ff99bb'>Nightmare Mode</font>", 
     CurrentValue = Env.cfg.autoarrest, 
     Callback = function(v) Env.cfg.autoarrest = v end
 })
+
 CombatTab:CreateToggle({
-    Name = "Punch Aura", 
+    Name = "Punch Aura <font transparency='0.6'>Personal Space</font>", 
     CurrentValue = Env.cfg.punchaura, 
     Callback = function(v) Env.cfg.punchaura = v end
 })
 
-CombatTab:CreateSection("Shield Breaker")
-CombatTab:CreateToggle({
-    Name = "Enable Shield Breaker", 
-    CurrentValue = Env.cfg.shieldbreaker, 
-    Callback = function(v) Env.cfg.shieldbreaker = v end
-})
-CombatTab:CreateSlider({
-    Name = "Head Shot Chance", 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = Env.cfg.shieldheadchance, 
-    Callback = function(v) Env.cfg.shieldheadchance = v end
-})
+--// VISUALS TAB //--
+VisualsTab:CreateSection("ESP Settings")
 
-VisualsTab:CreateSection("Player ESP")
 VisualsTab:CreateToggle({
-    Name = "Enable ESP", 
+    Name = "<b>Player ESP</b> <font color='#ff99bb'>See Souls</font>", 
     CurrentValue = Env.cfg.esp, 
     Callback = function(v) Env.cfg.esp = v; Env.updateEsp() end
 })
-VisualsTab:CreateToggle({
-    Name = "Team Check", 
-    CurrentValue = Env.cfg.espteamcheck, 
-    Callback = function(v) Env.cfg.espteamcheck = v; Env.updateEsp() end
-})
-VisualsTab:CreateToggle({
-    Name = "Use Team Colors", 
-    CurrentValue = Env.cfg.espuseteamcolors, 
-    Callback = function(v) Env.cfg.espuseteamcolors = v; Env.updateEsp() end
-})
+
 VisualsTab:CreateSlider({
-    Name = "Max Distance", 
-    Range = {50, 1000}, 
+    Name = "Render Distance", 
+    Range = {50, 2000}, 
     Increment = 10, 
     Suffix = "m", 
     CurrentValue = Env.cfg.espmaxdist, 
     Callback = function(v) Env.cfg.espmaxdist = v; Env.updateEsp() end
 })
 
-VisualsTab:CreateSection("Team Colors")
+VisualsTab:CreateDivider()
+
 VisualsTab:CreateColorPicker({
-    Name = "Guards", 
+    Name = "Guards <font transparency='0.6'>Aura</font>", 
     Color = Env.cfg.espguards, 
     Callback = function(v) Env.cfg.espguards = v; Env.updateEsp() end
 })
 VisualsTab:CreateColorPicker({
-    Name = "Inmates", 
+    Name = "Inmates <font transparency='0.6'>Aura</font>", 
     Color = Env.cfg.espinmates, 
     Callback = function(v) Env.cfg.espinmates = v; Env.updateEsp() end
 })
 VisualsTab:CreateColorPicker({
-    Name = "Criminals", 
+    Name = "Criminals <font transparency='0.6'>Aura</font>", 
     Color = Env.cfg.espcriminals, 
     Callback = function(v) Env.cfg.espcriminals = v; Env.updateEsp() end
 })
 
-VisualsTab:CreateSection("C4 ESP")
-VisualsTab:CreateToggle({
-    Name = "Enable C4 ESP", 
-    CurrentValue = Env.cfg.c4esp, 
-    Callback = function(v) Env.cfg.c4esp = v; Env.updateC4Esp() end
-})
-VisualsTab:CreateColorPicker({
-    Name = "C4 Color", 
-    Color = Env.cfg.c4espcolor, 
-    Callback = function(v) Env.cfg.c4espcolor = v; Env.updateC4Esp() end
-})
+--// MOVEMENT TAB //--
+MovementTab:CreateSection("Body Control")
 
-MovementTab:CreateSection("Speed")
 MovementTab:CreateToggle({
     Name = "Enable WalkSpeed", 
     CurrentValue = Env.cfg.ws_enabled, 
     Callback = function(v) Env.cfg.ws_enabled = v end
 })
+
 MovementTab:CreateSlider({
-    Name = "WalkSpeed", 
+    Name = "WalkSpeed <font transparency='0.6'>Pace</font>", 
     Range = {16, 200}, 
     Increment = 1, 
     CurrentValue = Env.cfg.walkspeed, 
     Callback = function(v) Env.cfg.walkspeed = v end
 })
+
+MovementTab:CreateDivider()
+
 MovementTab:CreateToggle({
     Name = "Enable JumpPower", 
     CurrentValue = Env.cfg.jp_enabled, 
     Callback = function(v) Env.cfg.jp_enabled = v end
 })
+
 MovementTab:CreateSlider({
-    Name = "JumpPower", 
+    Name = "JumpPower <font transparency='0.6'>Height</font>", 
     Range = {50, 500}, 
     Increment = 1, 
     CurrentValue = Env.cfg.jumppower, 
     Callback = function(v) Env.cfg.jumppower = v end
 })
 
-MovementTab:CreateSection("Physics")
+MovementTab:CreateSection("Ghost Mode")
 MovementTab:CreateToggle({
-    Name = "Noclip", 
+    Name = "Noclip <font color='#ff99bb'>Phase</font>", 
     CurrentValue = Env.cfg.noclip, 
-    Callback = function(v) 
-        Env.cfg.noclip = v 
-        updateNoclip()
-    end
+    Callback = function(v) Env.cfg.noclip = v; updateNoclip() end
 })
 
-MovementTab:CreateSection("Teleports")
+MovementTab:CreateSection("Dream Warping")
+
 local function tp(pos) 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then 
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(pos) 
     end 
 end
-MovementTab:CreateButton({
-    Name = "Yard", 
-    Callback = function() tp(Vector3.new(780, 98, 2470)) end
-})
-MovementTab:CreateButton({
-    Name = "Prison Interior", 
-    Callback = function() tp(Vector3.new(913, 100, 2388)) end
-})
-MovementTab:CreateButton({
-    Name = "Armory", 
-    Callback = function() tp(Vector3.new(831, 100, 2233)) end
-})
-MovementTab:CreateButton({
-    Name = "Cafeteria", 
-    Callback = function() tp(Vector3.new(905, 100, 2316)) end
-})
-MovementTab:CreateButton({
-    Name = "Criminal Base", 
-    Callback = function() tp(Vector3.new(-931, 94, 2063)) end
-})
-MovementTab:CreateButton({
-    Name = "Instant Escape", 
-    Callback = function()
-        local c = LocalPlayer.Character
-        local h = c and c:FindFirstChild("HumanoidRootPart")
-        if h then
-            local containers = Workspace:FindFirstChild("Shippingcontainers")
-            if containers then
-                pcall(function()
-                    h.CFrame = containers:GetChildren()[6]:GetChildren()[2].CFrame
-                end)
-            else
-                h.CFrame = CFrame.new(-931, 94, 2063)
-            end
-            task.wait(0.5)
-            local hum = c:FindFirstChild("Humanoid")
-            if hum then hum.Health = 0 end
-        end
-    end
-})
 
-UtilityTab:CreateSection("Bypass")
-UtilityTab:CreateToggle({
-    Name = "Walk While Arrested", 
-    CurrentValue = Env.cfg.shootarrested, 
-    Callback = function(v) Env.cfg.shootarrested = v end
-})
+MovementTab:CreateButton({ Name = "Yard", Callback = function() tp(Vector3.new(780, 98, 2470)) end })
+MovementTab:CreateButton({ Name = "Prison Interior", Callback = function() tp(Vector3.new(913, 100, 2388)) end })
+MovementTab:CreateButton({ Name = "Armory", Callback = function() tp(Vector3.new(831, 100, 2233)) end })
+MovementTab:CreateButton({ Name = "Criminal Base", Callback = function() tp(Vector3.new(-931, 94, 2063)) end })
 
-UtilityTab:CreateSection("Item Pickup")
+--// UTILITY TAB //--
+UtilityTab:CreateSection("Interaction")
+
 UtilityTab:CreateToggle({
-    Name = "Auto Grab Items", 
+    Name = "Auto Grab <font color='#ff99bb'>Snatch</font>", 
     CurrentValue = Env.cfg.autograb, 
     Callback = function(v) Env.cfg.autograb = v end
 })
 
-ConfigTab:CreateSection("Configuration Manager")
+UtilityTab:CreateSection("Exploits")
+
+UtilityTab:CreateToggle({
+    Name = "Walk While Arrested <font transparency='0.6'>Anti-Stun</font>", 
+    CurrentValue = Env.cfg.shootarrested, 
+    Callback = function(v) Env.cfg.shootarrested = v end
+})
+
+--// CONFIG TAB //--
+ConfigTab:CreateSection("Brain State")
+
 local configNameInput = ""
 ConfigTab:CreateInput({
-    Name = "Config Name", 
-    PlaceholderText = "Enter config name...", 
+    Name = "State Name", 
+    PlaceholderText = "Name this dream...", 
     RemoveTextAfterFocusLost = false, 
     Callback = function(t) configNameInput = t end
 })
+
 ConfigTab:CreateButton({
-    Name = "Save Config", 
+    Name = "Save State", 
     Callback = function() 
         if configNameInput == "" then 
-            Rayfield:Notify({
-                Title = "Config", 
-                Content = "Please enter a config name!", 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Error", Content = "Name your dream first.", Image = "alert-circle"}) 
             return 
         end 
         if saveConfig(configNameInput) then 
-            Rayfield:Notify({
-                Title = "Config Saved", 
-                Content = "Saved: " .. configNameInput, 
-                Duration = 3
-            }) 
-        else 
-            Rayfield:Notify({
-                Title = "Config Error", 
-                Content = "Failed to save config!", 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Saved", Content = "State <b>" .. configNameInput.."</b> preserved.", Image = "check"}) 
         end 
     end
 })
+
 ConfigTab:CreateButton({
-    Name = "Load Config", 
+    Name = "Load State", 
     Callback = function() 
         if configNameInput == "" then 
-            Rayfield:Notify({
-                Title = "Config", 
-                Content = "Please enter a config name!", 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Error", Content = "Which dream to load?", Image = "alert-circle"}) 
             return 
         end 
         if loadConfig(configNameInput) then 
-            Rayfield:Notify({
-                Title = "Config Loaded", 
-                Content = "Loaded: " .. configNameInput, 
-                Duration = 3
-            }) 
-        else 
-            Rayfield:Notify({
-                Title = "Config Error", 
-                Content = "Config not found!", 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Loaded", Content = "Entering state: <b>" .. configNameInput.."</b>", Image = "check"}) 
         end 
     end
 })
 
-ConfigTab:CreateSection("Reset")
-ConfigTab:CreateButton({
-    Name = "Reset to Defaults", 
-    Callback = function() 
-        Env.cfg.enabled = true
-        Env.cfg.teamcheck = false
-        Env.cfg.esp = false
-        Env.cfg.autoarrest = false
-        Env.cfg.punchaura = false
-        Env.cfg.noclip = false
-        Env.cfg.shootarrested = false
-        Env.cfg.autograb = false
-        Env.cfg.ws_enabled = false
-        Env.cfg.jp_enabled = false
-        updateNoclip()
-        Env.updateEsp() 
-        Rayfield:Notify({
-            Title = "Reset Complete", 
-            Content = "All settings restored to default", 
-            Duration = 3
-        }) 
-    end
-})
+ConfigTab:CreateDivider()
+ConfigTab:CreateLabel("Casual Comas v" .. Env.Version, "info", Color3.fromRGB(180, 160, 200))
 
 Rayfield:Notify({
-    Title = "Welcome!", 
-    Content = "Casual Comas v" .. Env.Version, 
+    Title = "Casual Comas", 
+    Content = "You are now <b>asleep</b>. Good luck.", 
+    Image = "moon",
     Duration = 5
 })
