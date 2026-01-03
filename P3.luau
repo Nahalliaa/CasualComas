@@ -7,7 +7,6 @@ local Players = Env.Services.Players
 local LocalPlayer = Players.LocalPlayer
 local RunService = Env.Services.RunService
 local Workspace = game:GetService("Workspace")
-local UserInputService = Env.Services.UserInputService
 
 if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
 if Env.cfg.punchaura == nil then Env.cfg.punchaura = false end
@@ -18,27 +17,6 @@ if Env.cfg.jumppower == nil then Env.cfg.jumppower = 50 end
 if Env.cfg.noclip == nil then Env.cfg.noclip = false end
 if Env.cfg.shootarrested == nil then Env.cfg.shootarrested = false end
 if Env.cfg.autograb == nil then Env.cfg.autograb = false end
-if Env.cfg.fly == nil then Env.cfg.fly = false end
-if Env.cfg.flyspeed == nil then Env.cfg.flyspeed = 50 end
-if Env.cfg.speedburst == nil then Env.cfg.speedburst = false end
-if Env.cfg.burstspeed == nil then Env.cfg.burstspeed = 100 end
-if Env.cfg.itemesp == nil then Env.cfg.itemesp = false end
-if Env.cfg.itemespdist == nil then Env.cfg.itemespdist = 200 end
-if Env.cfg.showdistance == nil then Env.cfg.showdistance = false end
-if Env.cfg.showhealthbar == nil then Env.cfg.showhealthbar = false end
-if Env.cfg.chams == nil then Env.cfg.chams = false end
-if Env.cfg.chamscolor == nil then Env.cfg.chamscolor = Color3.fromRGB(180, 130, 200) end
-if Env.cfg.tracers == nil then Env.cfg.tracers = false end
-if Env.cfg.tracercolor == nil then Env.cfg.tracercolor = Color3.fromRGB(165, 120, 185) end
-if Env.cfg.crosshair == nil then Env.cfg.crosshair = false end
-if Env.cfg.crosshairsize == nil then Env.cfg.crosshairsize = 10 end
-if Env.cfg.crosshaircolor == nil then Env.cfg.crosshaircolor = Color3.fromRGB(255, 255, 255) end
-if Env.cfg.crosshairfollow == nil then Env.cfg.crosshairfollow = true end
-if Env.cfg.bulletcolor == nil then Env.cfg.bulletcolor = Color3.fromRGB(180, 130, 200) end
-if Env.cfg.custombullets == nil then Env.cfg.custombullets = false end
-if Env.cfg.killcounter == nil then Env.cfg.killcounter = 0 end
-
-local kills = Env.cfg.killcounter or 0
 
 local noclipConnection = nil
 local function updateNoclip()
@@ -90,114 +68,6 @@ task.spawn(function()
     end
 end)
 
-local flyConnection = nil
-local flyBodyGyro = nil
-local flyBodyVelocity = nil
-
-local function updateFly()
-    if flyConnection then
-        flyConnection:Disconnect()
-        flyConnection = nil
-    end
-    
-    if flyBodyGyro then
-        flyBodyGyro:Destroy()
-        flyBodyGyro = nil
-    end
-    
-    if flyBodyVelocity then
-        flyBodyVelocity:Destroy()
-        flyBodyVelocity = nil
-    end
-    
-    if Env.cfg.fly then
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if hrp then
-            flyBodyGyro = Instance.new("BodyGyro")
-            flyBodyGyro.P = 9e4
-            flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-            flyBodyGyro.cframe = hrp.CFrame
-            flyBodyGyro.Parent = hrp
-            
-            flyBodyVelocity = Instance.new("BodyVelocity")
-            flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
-            flyBodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
-            flyBodyVelocity.Parent = hrp
-            
-            flyConnection = RunService.Heartbeat:Connect(function()
-                if not Env.cfg.fly then return end
-                
-                local char = LocalPlayer.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-                
-                local cam = Workspace.CurrentCamera
-                local moveDir = Vector3.new(0, 0, 0)
-                
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveDir = moveDir + (cam.CFrame.LookVector)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveDir = moveDir - (cam.CFrame.LookVector)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveDir = moveDir - (cam.CFrame.RightVector)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveDir = moveDir + (cam.CFrame.RightVector)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveDir = moveDir + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                    moveDir = moveDir - Vector3.new(0, 1, 0)
-                end
-                
-                local touchEnabled = UserInputService.TouchEnabled
-                if touchEnabled then
-                    local moveThumb = UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1)
-                    for _, input in pairs(moveThumb) do
-                        if input.KeyCode == Enum.KeyCode.Thumbstick1 then
-                            local pos = input.Position
-                            moveDir = moveDir + (cam.CFrame.LookVector * -pos.Y)
-                            moveDir = moveDir + (cam.CFrame.RightVector * pos.X)
-                        end
-                    end
-                end
-                
-                if moveDir.Magnitude > 0 then
-                    moveDir = moveDir.Unit
-                end
-                
-                flyBodyVelocity.velocity = moveDir * Env.cfg.flyspeed
-                flyBodyGyro.cframe = cam.CFrame
-            end)
-        end
-    end
-end
-
-local burstActive = false
-local originalWS = 16
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if Env.cfg.speedburst and input.KeyCode == Enum.KeyCode.LeftControl then
-        burstActive = true
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-        if hum then
-            originalWS = hum.WalkSpeed
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        burstActive = false
-    end
-end)
-
 local grab_dist_sq = 12 * 12
 local last_grab = 0
 local giver_remote = ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("GiverPressed")
@@ -229,327 +99,14 @@ local function updateGrabCache()
     end
 end
 
-local itemEspCache = {}
-local itemEspFolder = nil
-
-local function createItemESP()
-    if itemEspFolder then itemEspFolder:Destroy() end
-    itemEspFolder = Instance.new("Folder")
-    itemEspFolder.Name = "ItemESP"
-    itemEspFolder.Parent = Workspace.CurrentCamera
-end
-
-local function makeItemEsp(item, itemType)
-    if itemEspCache[item] then return itemEspCache[item] end
-    
-    local esp = Instance.new("BillboardGui")
-    esp.Name = "ItemESP_" .. itemType
-    esp.AlwaysOnTop = true
-    esp.Size = UDim2.new(0, 50, 0, 30)
-    esp.StudsOffset = Vector3.new(0, 1, 0)
-    esp.Adornee = item
-    
-    local icon = Instance.new("Frame")
-    icon.BackgroundColor3 = itemType == "M9" and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(0, 200, 255)
-    icon.Size = UDim2.new(0, 8, 0, 8)
-    icon.Position = UDim2.new(0.5, -4, 0, 0)
-    icon.Rotation = 45
-    icon.Parent = esp
-    
-    local label = Instance.new("TextLabel")
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.new(0, 50, 0, 14)
-    label.Position = UDim2.new(0.5, -25, 0, 12)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 10
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextStrokeTransparency = 0.5
-    label.Text = itemType
-    label.Parent = esp
-    
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Name = "DistLabel"
-    distLabel.BackgroundTransparency = 1
-    distLabel.Size = UDim2.new(0, 50, 0, 12)
-    distLabel.Position = UDim2.new(0.5, -25, 0, 24)
-    distLabel.Font = Enum.Font.Gotham
-    distLabel.TextSize = 9
-    distLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-    distLabel.TextStrokeTransparency = 0.5
-    distLabel.Text = ""
-    distLabel.Parent = esp
-    
-    itemEspCache[item] = esp
-    return esp
-end
-
-local function updateItemEsp()
-    if not Env.cfg.itemesp or not itemEspFolder then
-        for _, esp in pairs(itemEspCache) do
-            if esp then esp:Destroy() end
-        end
-        itemEspCache = {}
-        return
-    end
-    
-    local myChar = LocalPlayer.Character
-    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myHrp then return end
-    
-    for item, esp in pairs(itemEspCache) do
-        if not item or not item.Parent then
-            esp:Destroy()
-            itemEspCache[item] = nil
-        end
-    end
-    
-    for _, cached in ipairs(grab_cache) do
-        if cached.model and cached.part and cached.part.Parent then
-            local dist = (cached.part.Position - myHrp.Position).Magnitude
-            if dist <= Env.cfg.itemespdist then
-                local itemType = cached.model.Name == "M9" and "M9" or "Keycard"
-                local esp = makeItemEsp(cached.part, itemType)
-                esp.Parent = itemEspFolder
-                
-                local distLabel = esp:FindFirstChild("DistLabel")
-                if distLabel then
-                    distLabel.Text = math.floor(dist) .. "m"
-                end
-            else
-                if itemEspCache[cached.part] then
-                    itemEspCache[cached.part]:Destroy()
-                    itemEspCache[cached.part] = nil
-                end
-            end
-        end
-    end
-end
-
-local chamsCache = {}
-
-local function updateChams()
-    for player, highlight in pairs(chamsCache) do
-        if highlight then
-            highlight:Destroy()
-        end
-        chamsCache[player] = nil
-    end
-    
-    if not Env.cfg.chams then return end
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local char = player.Character
-            if not chamsCache[player] then
-                local highlight = Instance.new("Highlight")
-                highlight.Name = "Cham"
-                highlight.FillColor = Env.cfg.chamscolor
-                highlight.OutlineColor = Color3.new(0, 0, 0)
-                highlight.FillTransparency = 0.5
-                highlight.OutlineTransparency = 0
-                highlight.Parent = char
-                chamsCache[player] = highlight
-            end
-        end
-    end
-end
-
-local tracerLines = {}
-
-local function updateTracers()
-    for _, line in pairs(tracerLines) do
-        if line then line:Remove() end
-    end
-    tracerLines = {}
-    
-    if not Env.cfg.tracers then return end
-    
-    local cam = Workspace.CurrentCamera
-    if not cam then return end
-    
-    local myChar = LocalPlayer.Character
-    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myHrp then return end
-    
-    local viewportSize = cam.ViewportSize
-    local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y)
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local screenPos, onScreen = cam:WorldToViewportPoint(hrp.Position)
-                if onScreen then
-                    local line = Drawing.new("Line")
-                    line.From = screenCenter
-                    line.To = Vector2.new(screenPos.X, screenPos.Y)
-                    line.Color = Env.cfg.tracercolor
-                    line.Thickness = 1
-                    line.Transparency = 0.7
-                    line.Visible = true
-                    table.insert(tracerLines, line)
-                end
-            end
-        end
-    end
-end
-
-local crosshairLines = {}
-
-local function createCrosshair()
-    for _, line in pairs(crosshairLines) do
-        if line then line:Remove() end
-    end
-    crosshairLines = {}
-    
-    if not Env.cfg.crosshair then return end
-    
-    for i = 1, 4 do
-        local line = Drawing.new("Line")
-        line.Color = Env.cfg.crosshaircolor
-        line.Thickness = 2
-        line.Transparency = 1
-        line.Visible = true
-        table.insert(crosshairLines, line)
-    end
-end
-
-local function updateCrosshair()
-    if not Env.cfg.crosshair then
-        for _, line in pairs(crosshairLines) do
-            if line then line.Visible = false end
-        end
-        return
-    end
-    
-    local center
-    local cam = Workspace.CurrentCamera
-    
-    if Env.cfg.crosshairfollow and cam then
-        if UserInputService.TouchEnabled and UserInputService:GetLastInputType() == Enum.UserInputType.Touch then
-            local touches = UserInputService:GetTouchesInProgress()
-            if #touches > 0 then
-                center = touches[1].Position
-            else
-                local viewportSize = cam.ViewportSize
-                center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-            end
-        else
-            center = UserInputService:GetMouseLocation()
-        end
-    else
-        if cam then
-            local viewportSize = cam.ViewportSize
-            center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-        end
-    end
-    
-    if not center then return end
-    
-    local size = Env.cfg.crosshairsize
-    local gap = 5
-    
-    if crosshairLines[1] then
-        crosshairLines[1].From = Vector2.new(center.X - gap - size, center.Y)
-        crosshairLines[1].To = Vector2.new(center.X - gap, center.Y)
-        crosshairLines[1].Visible = true
-    end
-    
-    if crosshairLines[2] then
-        crosshairLines[2].From = Vector2.new(center.X + gap, center.Y)
-        crosshairLines[2].To = Vector2.new(center.X + gap + size, center.Y)
-        crosshairLines[2].Visible = true
-    end
-    
-    if crosshairLines[3] then
-        crosshairLines[3].From = Vector2.new(center.X, center.Y - gap - size)
-        crosshairLines[3].To = Vector2.new(center.X, center.Y - gap)
-        crosshairLines[3].Visible = true
-    end
-    
-    if crosshairLines[4] then
-        crosshairLines[4].From = Vector2.new(center.X, center.Y + gap)
-        crosshairLines[4].To = Vector2.new(center.X, center.Y + gap + size)
-        crosshairLines[4].Visible = true
-    end
-end
-
-task.spawn(function()
-    local killfeed = ReplicatedStorage:WaitForChild("Killfeed")
-    killfeed.ChildAdded:Connect(function(child)
-        local name = child.Name
-        local myName = LocalPlayer.Name
-        local displayName = LocalPlayer.DisplayName
-        
-        local patterns = {
-            myName .. " %(@.-%)" .. "  killed .+ with",
-            displayName .. " %(@.-%)" .. "  killed .+ with"
-        }
-        
-        for _, pattern in ipairs(patterns) do
-            if name:match(pattern) then
-                kills = kills + 1
-                Env.cfg.killcounter = kills
-                break
-            end
-        end
-    end)
-end)
-
-task.spawn(function()
-    while task.wait(0.1) do
-        if Env.cfg.custombullets then
-            local cam = Workspace.CurrentCamera
-            if cam then
-                for _, obj in pairs(cam:GetChildren()) do
-                    if obj.Name == "RayPart" and obj:IsA("BasePart") then
-                        obj.Color = Env.cfg.bulletcolor
-                        
-                        for _, light in pairs(obj:GetChildren()) do
-                            if light:IsA("Light") then
-                                light.Color = Env.cfg.bulletcolor
-                            end
-                        end
-                    end
-                end
-            end
-            
-            local taser = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Taser")
-            if taser then
-                for _, obj in pairs(taser:GetDescendants()) do
-                    if obj.Name == "RayPart" and obj:IsA("BasePart") then
-                        obj.Color = Env.cfg.bulletcolor
-                        
-                        for _, light in pairs(obj:GetChildren()) do
-                            if light:IsA("Light") then
-                                light.Color = Env.cfg.bulletcolor
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-createItemESP()
-createCrosshair()
-
 RunService.Heartbeat:Connect(function()
     local myChar = LocalPlayer.Character
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local myHum = myChar and myChar:FindFirstChild("Humanoid")
 
     if myHum and myHrp then
-        if Env.cfg.ws_enabled and not burstActive then 
-            myHum.WalkSpeed = Env.cfg.walkspeed 
-        elseif burstActive and Env.cfg.speedburst then
-            myHum.WalkSpeed = Env.cfg.burstspeed
-        end
-        
-        if Env.cfg.jp_enabled then 
-            myHum.JumpPower = Env.cfg.jumppower 
-        end
+        if Env.cfg.ws_enabled then myHum.WalkSpeed = Env.cfg.walkspeed end
+        if Env.cfg.jp_enabled then myHum.JumpPower = Env.cfg.jumppower end
     end
 
     if Env.cfg.autograb and myHrp and giver_remote then
@@ -601,26 +158,6 @@ RunService.Heartbeat:Connect(function()
                 end
             end
         end
-    end
-    
-    updateItemEsp()
-    updateCrosshair()
-end)
-
-RunService.RenderStepped:Connect(function()
-    updateChams()
-    updateTracers()
-end)
-
-Players.PlayerAdded:Connect(function()
-    task.wait(1)
-    updateChams()
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if chamsCache[player] then
-        chamsCache[player]:Destroy()
-        chamsCache[player] = nil
     end
 end)
 
@@ -706,8 +243,6 @@ local function loadConfig(name)
     if Env.updateEsp then Env.updateEsp() end
     if Env.updateC4Esp then Env.updateC4Esp() end
     updateNoclip()
-    updateFly()
-    createCrosshair()
     return true
 end
 
@@ -746,7 +281,6 @@ local customTheme = {
     InputStroke = Color3.fromRGB(68, 58, 78),
     PlaceholderColor = Color3.fromRGB(140, 130, 135)
 }
-
 
 local Window = Rayfield:CreateWindow({
     Name = "Casual Comas",
@@ -912,16 +446,6 @@ VisualsTab:CreateSlider({
     CurrentValue = Env.cfg.espmaxdist, 
     Callback = function(v) Env.cfg.espmaxdist = v; Env.updateEsp() end
 })
-VisualsTab:CreateToggle({
-    Name = "Show Distance", 
-    CurrentValue = Env.cfg.showdistance, 
-    Callback = function(v) Env.cfg.showdistance = v; Env.updateEsp() end
-})
-VisualsTab:CreateToggle({
-    Name = "Show Health Bar", 
-    CurrentValue = Env.cfg.showhealthbar, 
-    Callback = function(v) Env.cfg.showhealthbar = v; Env.updateEsp() end
-})
 
 VisualsTab:CreateSection("Team Colors")
 VisualsTab:CreateColorPicker({
@@ -952,81 +476,6 @@ VisualsTab:CreateColorPicker({
     Callback = function(v) Env.cfg.c4espcolor = v; Env.updateC4Esp() end
 })
 
-VisualsTab:CreateSection("Item ESP")
-VisualsTab:CreateToggle({
-    Name = "Enable Item ESP", 
-    CurrentValue = Env.cfg.itemesp, 
-    Callback = function(v) Env.cfg.itemesp = v end
-})
-VisualsTab:CreateSlider({
-    Name = "Item ESP Distance", 
-    Range = {50, 500}, 
-    Increment = 10, 
-    Suffix = "m", 
-    CurrentValue = Env.cfg.itemespdist, 
-    Callback = function(v) Env.cfg.itemespdist = v end
-})
-
-VisualsTab:CreateSection("Chams")
-VisualsTab:CreateToggle({
-    Name = "Enable Chams", 
-    CurrentValue = Env.cfg.chams, 
-    Callback = function(v) Env.cfg.chams = v; updateChams() end
-})
-VisualsTab:CreateColorPicker({
-    Name = "Chams Color", 
-    Color = Env.cfg.chamscolor, 
-    Callback = function(v) Env.cfg.chamscolor = v; updateChams() end
-})
-
-VisualsTab:CreateSection("Tracers")
-VisualsTab:CreateToggle({
-    Name = "Enable Tracers", 
-    CurrentValue = Env.cfg.tracers, 
-    Callback = function(v) Env.cfg.tracers = v end
-})
-VisualsTab:CreateColorPicker({
-    Name = "Tracer Color", 
-    Color = Env.cfg.tracercolor, 
-    Callback = function(v) Env.cfg.tracercolor = v end
-})
-
-VisualsTab:CreateSection("Crosshair")
-VisualsTab:CreateToggle({
-    Name = "Enable Crosshair", 
-    CurrentValue = Env.cfg.crosshair, 
-    Callback = function(v) Env.cfg.crosshair = v; createCrosshair() end
-})
-VisualsTab:CreateToggle({
-    Name = "Follow Cursor/Touch", 
-    CurrentValue = Env.cfg.crosshairfollow, 
-    Callback = function(v) Env.cfg.crosshairfollow = v end
-})
-VisualsTab:CreateSlider({
-    Name = "Crosshair Size", 
-    Range = {5, 30}, 
-    Increment = 1, 
-    CurrentValue = Env.cfg.crosshairsize, 
-    Callback = function(v) Env.cfg.crosshairsize = v end
-})
-VisualsTab:CreateColorPicker({
-    Name = "Crosshair Color", 
-    Color = Env.cfg.crosshaircolor, 
-    Callback = function(v) Env.cfg.crosshaircolor = v; createCrosshair() end
-})
-
-VisualsTab:CreateSection("Bullet Trails")
-VisualsTab:CreateToggle({
-    Name = "Custom Bullet Color", 
-    CurrentValue = Env.cfg.custombullets, 
-    Callback = function(v) Env.cfg.custombullets = v end
-})
-VisualsTab:CreateColorPicker({
-    Name = "Bullet Color", 
-    Color = Env.cfg.bulletcolor, 
-    Callback = function(v) Env.cfg.bulletcolor = v end
-})
-
 MovementTab:CreateSection("Speed")
 MovementTab:CreateToggle({
     Name = "Enable WalkSpeed", 
@@ -1053,21 +502,6 @@ MovementTab:CreateSlider({
     Callback = function(v) Env.cfg.jumppower = v end
 })
 
-MovementTab:CreateSection("Speed Burst")
-MovementTab:CreateToggle({
-    Name = "Enable Speed Burst", 
-    CurrentValue = Env.cfg.speedburst, 
-    Callback = function(v) Env.cfg.speedburst = v end
-})
-MovementTab:CreateSlider({
-    Name = "Burst Speed", 
-    Range = {50, 300}, 
-    Increment = 5, 
-    CurrentValue = Env.cfg.burstspeed, 
-    Callback = function(v) Env.cfg.burstspeed = v end
-})
-MovementTab:CreateParagraph({Title = "Controls", Content = "Hold Left Ctrl to activate speed burst"})
-
 MovementTab:CreateSection("Physics")
 MovementTab:CreateToggle({
     Name = "Noclip", 
@@ -1077,24 +511,6 @@ MovementTab:CreateToggle({
         updateNoclip()
     end
 })
-
-MovementTab:CreateSection("Fly")
-MovementTab:CreateToggle({
-    Name = "Enable Fly", 
-    CurrentValue = Env.cfg.fly, 
-    Callback = function(v) 
-        Env.cfg.fly = v 
-        updateFly()
-    end
-})
-MovementTab:CreateSlider({
-    Name = "Fly Speed", 
-    Range = {10, 150}, 
-    Increment = 5, 
-    CurrentValue = Env.cfg.flyspeed, 
-    Callback = function(v) Env.cfg.flyspeed = v end
-})
-MovementTab:CreateParagraph({Title = "Controls", Content = "WASD to move, Space to go up, Shift to go down. Mobile uses left thumbstick."})
 
 MovementTab:CreateSection("Teleports")
 local function tp(pos) 
@@ -1139,70 +555,6 @@ MovementTab:CreateButton({
             task.wait(0.5)
             local hum = c:FindFirstChild("Humanoid")
             if hum then hum.Health = 0 end
-        end
-    end
-})
-
-UtilityTab:CreateSection("Stats")
-UtilityTab:CreateLabel("Session Kills: " .. kills)
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            local label = UtilityTab.Elements and UtilityTab.Elements[1]
-            if label and label.Text then
-                label.Text = "Session Kills: " .. kills
-            end
-        end)
-    end
-end)
-
-UtilityTab:CreateButton({
-    Name = "Reset Kill Counter", 
-    Callback = function() 
-        kills = 0 
-        Env.cfg.killcounter = 0 
-        Rayfield:Notify({
-            Title = "Kill Counter", 
-            Content = "Kill counter reset to 0", 
-            Duration = 3
-        })
-    end
-})
-
-UtilityTab:CreateSection("Quick Actions")
-UtilityTab:CreateButton({
-    Name = "Suicide (Respawn)", 
-    Callback = function()
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        if hum then
-            hum.Health = 0
-            Rayfield:Notify({
-                Title = "Respawn", 
-                Content = "Respawning...", 
-                Duration = 2
-            })
-        end
-    end
-})
-
-UtilityTab:CreateButton({
-    Name = "Remove All Doors", 
-    Callback = function()
-        local doors = Workspace:FindFirstChild("Doors")
-        if doors then
-            doors:Destroy()
-            Rayfield:Notify({
-                Title = "Doors Removed", 
-                Content = "All doors have been removed", 
-                Duration = 3
-            })
-        else
-            Rayfield:Notify({
-                Title = "Error", 
-                Content = "Doors folder not found", 
-                Duration = 3
-            })
         end
     end
 })
@@ -1296,16 +648,7 @@ ConfigTab:CreateButton({
         Env.cfg.autograb = false
         Env.cfg.ws_enabled = false
         Env.cfg.jp_enabled = false
-        Env.cfg.fly = false
-        Env.cfg.speedburst = false
-        Env.cfg.itemesp = false
-        Env.cfg.chams = false
-        Env.cfg.tracers = false
-        Env.cfg.crosshair = false
-        Env.cfg.custombullets = false
         updateNoclip()
-        updateFly()
-        updateChams()
         Env.updateEsp() 
         Rayfield:Notify({
             Title = "Reset Complete", 
@@ -1317,6 +660,6 @@ ConfigTab:CreateButton({
 
 Rayfield:Notify({
     Title = "Welcome!", 
-    Content = "Casual Comas v" .. Env.Version .. " | Kills: " .. kills, 
+    Content = "Casual Comas v" .. Env.Version, 
     Duration = 5
 })
