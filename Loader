@@ -1,7 +1,7 @@
 local CoreGui = game:GetService("CoreGui")
 
 -- Load main script
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Nahalliaa/CasualComas/refs/heads/main/CasualComasPremium.luau"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Nahalliaa/CasualComas/refs/heads/main/Theme"))()
 
 -- Style the Rayfield prompt
 task.spawn(function()
