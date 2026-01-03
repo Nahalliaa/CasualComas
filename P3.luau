@@ -1,7 +1,6 @@
 --[[ 
-    Casual Comas // Lucid Dream Edition
-    Theme: Deep Sleep (Violet & Soft Pink)
-    "Entering the void..."
+    Casual Comas // Cloud Edition
+    "Soft as a cloud, hits like a coma."
 ]]
 
 local Env = getgenv().PL_Hub
@@ -13,6 +12,9 @@ local ReplicatedStorage = Env.Services.ReplicatedStorage
 local Players = Env.Services.Players
 local LocalPlayer = Players.LocalPlayer
 local RunService = Env.Services.RunService
+local SoundService = game:GetService("SoundService")
+local HapticService = game:GetService("HapticService")
+local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
 
 --// Initial Config Checks
@@ -25,6 +27,39 @@ if Env.cfg.jumppower == nil then Env.cfg.jumppower = 50 end
 if Env.cfg.noclip == nil then Env.cfg.noclip = false end
 if Env.cfg.shootarrested == nil then Env.cfg.shootarrested = false end
 if Env.cfg.autograb == nil then Env.cfg.autograb = false end
+if Env.cfg.autoshoot == nil then Env.cfg.autoshoot = false end
+if Env.cfg.shieldbreaker == nil then Env.cfg.shieldbreaker = false end
+if Env.cfg.c4esp == nil then Env.cfg.c4esp = false end
+
+--// Audio & Haptic System (RayBeats Style)
+local Sounds = {
+    Click = 6895079853,
+    Hover = 6895079775,
+    Notification = 4590662766,
+    Error = 4590657391,
+    Success = 6895079853
+}
+
+local function PlaySound(id)
+    task.spawn(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://" .. id
+        sound.Volume = 1
+        sound.Parent = SoundService
+        sound:Play()
+        sound.Ended:Wait()
+        sound:Destroy()
+    end)
+end
+
+local function TriggerVibration()
+    -- Only works if user has a controller connected, adds that "premium" feel
+    if HapticService:IsVibrationSupported(Enum.UserInputType.Gamepad1) then
+        HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.5)
+        task.wait(0.1)
+        HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+    end
+end
 
 --// Logic Handlers
 local noclipConnection = nil
@@ -195,23 +230,31 @@ end
 --// UI Library Initialization
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
---// THEME: LUCID HAZE (Dark Violet & Soft Pink)
-local LucidHaze = {
-    TextColor                     = Color3.fromRGB(240, 230, 245), -- White with slight purple tint
+--// Override Notify to include Sound & Vibration
+local originalNotify = Rayfield.Notify
+Rayfield.Notify = function(self, options)
+    PlaySound(Sounds.Notification)
+    TriggerVibration()
+    return originalNotify(self, options)
+end
+
+--// THEME: NIGHT SKY (Professional Dark Purple & Soft Pink)
+local NightSky = {
+    TextColor                     = Color3.fromRGB(240, 230, 245), 
     PlaceholderColor              = Color3.fromRGB(120, 110, 130),
 
-    Background                    = Color3.fromRGB(20, 18, 28),    -- Deep Void Purple
-    Topbar                        = Color3.fromRGB(26, 22, 35),    -- Slightly Lighter Violet
-    Shadow                        = Color3.fromRGB(10, 8, 15),     -- Dark Shadow
+    Background                    = Color3.fromRGB(20, 18, 28),    
+    Topbar                        = Color3.fromRGB(26, 22, 35),    
+    Shadow                        = Color3.fromRGB(10, 8, 15),     
 
     NotificationBackground        = Color3.fromRGB(26, 22, 35),
     NotificationActionsBackground = Color3.fromRGB(35, 30, 45),
 
     TabBackground                 = Color3.fromRGB(35, 30, 45),
     TabStroke                     = Color3.fromRGB(55, 45, 65),
-    TabBackgroundSelected         = Color3.fromRGB(255, 145, 175), -- Soft Pink (The Coma)
+    TabBackgroundSelected         = Color3.fromRGB(255, 145, 175), -- Cloud Pink
     TabTextColor                  = Color3.fromRGB(240, 230, 245),
-    SelectedTabTextColor          = Color3.fromRGB(20, 18, 28),    -- Contrast for Pink
+    SelectedTabTextColor          = Color3.fromRGB(20, 18, 28),    
 
     ElementBackground             = Color3.fromRGB(30, 26, 40),
     ElementBackgroundHover        = Color3.fromRGB(40, 34, 55),
@@ -220,11 +263,11 @@ local LucidHaze = {
     SecondaryElementStroke        = Color3.fromRGB(50, 40, 60),
 
     SliderBackground              = Color3.fromRGB(45, 40, 60),
-    SliderProgress                = Color3.fromRGB(255, 145, 175), -- Soft Pink
+    SliderProgress                = Color3.fromRGB(255, 145, 175), 
     SliderStroke                  = Color3.fromRGB(70, 60, 90),
 
     ToggleBackground              = Color3.fromRGB(30, 26, 40),
-    ToggleEnabled                 = Color3.fromRGB(255, 145, 175), -- Soft Pink
+    ToggleEnabled                 = Color3.fromRGB(255, 145, 175), 
     ToggleDisabled                = Color3.fromRGB(80, 70, 90),
     ToggleEnabledStroke           = Color3.fromRGB(255, 160, 190),
     ToggleDisabledStroke          = Color3.fromRGB(60, 50, 70),
@@ -238,45 +281,36 @@ local LucidHaze = {
     InputStroke                   = Color3.fromRGB(60, 50, 75)
 }
 
-local ComaTitles = {
-    "Drifting into unconsciousness...",
-    "Fading reality...",
-    "Entering REM cycle...",
-    "Disconnecting form...",
-    "Injecting Casual Comas...",
-    "Waking the nightmare...",
-    "Lucid Dream initiated...",
-    "Dissociating..."
-}
-
 local Window = Rayfield:CreateWindow({
     Name = "Casual Comas",
-    LoadingTitle = ComaTitles[math.random(1, #ComaTitles)],
-    LoadingSubtitle = "v" .. Env.Version .. " // Dream State",
-    Theme = LucidHaze,
+    LoadingTitle = "Casual Comas",
+    LoadingSubtitle = "v" .. Env.Version,
+    Icon = "cloud-fog", -- Temporary Cloud Logo
+    Theme = NightSky,
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
     DisableRayfieldPrompts = true,
 })
 
 --// Tabs
-local CombatTab = Window:CreateTab("Violence", "sword") -- "Combat" is boring. Violence fits the "bad dream" vibe.
-local VisualsTab = Window:CreateTab("Hallucinations", "eye") -- "Visuals" -> Hallucinations
-local MovementTab = Window:CreateTab("Sleepwalk", "footprints") -- "Movement" -> Sleepwalk
-local UtilityTab = Window:CreateTab("Lucidity", "zap") -- "Utility" -> Lucidity
-local ConfigTab = Window:CreateTab("Memory", "save") -- "Config" -> Memory
+local CombatTab = Window:CreateTab("Combat", "sword")
+local VisualsTab = Window:CreateTab("Visuals", "eye")
+local MovementTab = Window:CreateTab("Movement", "footprints")
+local UtilityTab = Window:CreateTab("Utility", "zap")
+local ConfigTab = Window:CreateTab("Settings", "settings")
+local CreditsTab = Window:CreateTab("Credits", "info") -- New Credits Tab
 
 --// COMBAT TAB //--
 CombatTab:CreateSection("Targeting")
 
 CombatTab:CreateToggle({
-    Name = "<b>Silent Aim</b> <font color='#ff99bb'>Hazy Hit</font>", 
+    Name = "<b>Silent Aim</b> <font color='#ff99bb'>Legit</font>", 
     CurrentValue = Env.cfg.enabled, 
-    Callback = function(v) Env.cfg.enabled = v end
+    Callback = function(v) Env.cfg.enabled = v; PlaySound(Sounds.Click) end
 })
 
 CombatTab:CreateSlider({
-    Name = "FOV Radius <font transparency='0.6'>Vision Blur</font>", 
+    Name = "FOV Radius <font transparency='0.6'>Size</font>", 
     Range = {10, 500}, 
     Increment = 1, 
     Suffix = "px", 
@@ -285,9 +319,9 @@ CombatTab:CreateSlider({
 })
 
 CombatTab:CreateToggle({
-    Name = "Show FOV <font transparency='0.6'>Draw Circle</font>", 
+    Name = "Show FOV <font transparency='0.6'>Visual</font>", 
     CurrentValue = Env.cfg.showfov, 
-    Callback = function(v) Env.cfg.showfov = v end
+    Callback = function(v) Env.cfg.showfov = v; PlaySound(Sounds.Click) end
 })
 
 CombatTab:CreateDropdown({
@@ -295,46 +329,64 @@ CombatTab:CreateDropdown({
     Options = Env.cfg.partslist, 
     CurrentOption = {Env.cfg.aimpart}, 
     MultipleOptions = false, 
-    Callback = function(o) Env.cfg.aimpart = o[1] end
+    Callback = function(o) Env.cfg.aimpart = o[1]; PlaySound(Sounds.Click) end
 })
 
 CombatTab:CreateDivider()
-
-CombatTab:CreateSection("Safety Checks")
-
-CombatTab:CreateToggle({
-    Name = "Team Check <font transparency='0.6'>Friendly Fire</font>", 
-    CurrentValue = Env.cfg.teamcheck, 
-    Callback = function(v) Env.cfg.teamcheck = v end
-})
-
-CombatTab:CreateToggle({
-    Name = "Wall Check <font transparency='0.6'>Visible Only</font>", 
-    CurrentValue = Env.cfg.wallcheck, 
-    Callback = function(v) Env.cfg.wallcheck = v end
-})
-
 CombatTab:CreateSection("Aggression")
 
 CombatTab:CreateToggle({
-    Name = "Auto Arrest <font color='#ff99bb'>Nightmare Mode</font>", 
-    CurrentValue = Env.cfg.autoarrest, 
-    Callback = function(v) Env.cfg.autoarrest = v end
+    Name = "Auto Shoot <font transparency='0.6'>Triggerbot</font>", 
+    CurrentValue = Env.cfg.autoshoot, 
+    Callback = function(v) Env.cfg.autoshoot = v; PlaySound(Sounds.Click) end
 })
 
 CombatTab:CreateToggle({
-    Name = "Punch Aura <font transparency='0.6'>Personal Space</font>", 
+    Name = "Shield Breaker <font color='#ff99bb'>Bypass</font>", 
+    CurrentValue = Env.cfg.shieldbreaker, 
+    Callback = function(v) Env.cfg.shieldbreaker = v; PlaySound(Sounds.Click) end
+})
+
+CombatTab:CreateToggle({
+    Name = "Auto Arrest <font transparency='0.6'>Guards Only</font>", 
+    CurrentValue = Env.cfg.autoarrest, 
+    Callback = function(v) Env.cfg.autoarrest = v; PlaySound(Sounds.Click) end
+})
+
+CombatTab:CreateToggle({
+    Name = "Punch Aura <font transparency='0.6'>Melee</font>", 
     CurrentValue = Env.cfg.punchaura, 
-    Callback = function(v) Env.cfg.punchaura = v end
+    Callback = function(v) Env.cfg.punchaura = v; PlaySound(Sounds.Click) end
+})
+
+CombatTab:CreateDivider()
+CombatTab:CreateSection("Checks")
+
+CombatTab:CreateToggle({
+    Name = "Team Check", 
+    CurrentValue = Env.cfg.teamcheck, 
+    Callback = function(v) Env.cfg.teamcheck = v; PlaySound(Sounds.Click) end
+})
+
+CombatTab:CreateToggle({
+    Name = "Wall Check", 
+    CurrentValue = Env.cfg.wallcheck, 
+    Callback = function(v) Env.cfg.wallcheck = v; PlaySound(Sounds.Click) end
 })
 
 --// VISUALS TAB //--
-VisualsTab:CreateSection("ESP Settings")
+VisualsTab:CreateSection("Player ESP")
 
 VisualsTab:CreateToggle({
-    Name = "<b>Player ESP</b> <font color='#ff99bb'>See Souls</font>", 
+    Name = "<b>Player ESP</b> <font color='#ff99bb'>Enable</font>", 
     CurrentValue = Env.cfg.esp, 
-    Callback = function(v) Env.cfg.esp = v; Env.updateEsp() end
+    Callback = function(v) Env.cfg.esp = v; Env.updateEsp(); PlaySound(Sounds.Click) end
+})
+
+VisualsTab:CreateToggle({
+    Name = "C4 ESP <font transparency='0.6'>Explosives</font>", 
+    CurrentValue = Env.cfg.c4esp, 
+    Callback = function(v) Env.cfg.c4esp = v; Env.updateC4Esp(); PlaySound(Sounds.Click) end
 })
 
 VisualsTab:CreateSlider({
@@ -347,34 +399,35 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateDivider()
+VisualsTab:CreateSection("Colors")
 
 VisualsTab:CreateColorPicker({
-    Name = "Guards <font transparency='0.6'>Aura</font>", 
+    Name = "Guards", 
     Color = Env.cfg.espguards, 
     Callback = function(v) Env.cfg.espguards = v; Env.updateEsp() end
 })
 VisualsTab:CreateColorPicker({
-    Name = "Inmates <font transparency='0.6'>Aura</font>", 
+    Name = "Inmates", 
     Color = Env.cfg.espinmates, 
     Callback = function(v) Env.cfg.espinmates = v; Env.updateEsp() end
 })
 VisualsTab:CreateColorPicker({
-    Name = "Criminals <font transparency='0.6'>Aura</font>", 
+    Name = "Criminals", 
     Color = Env.cfg.espcriminals, 
     Callback = function(v) Env.cfg.espcriminals = v; Env.updateEsp() end
 })
 
 --// MOVEMENT TAB //--
-MovementTab:CreateSection("Body Control")
+MovementTab:CreateSection("Character")
 
 MovementTab:CreateToggle({
     Name = "Enable WalkSpeed", 
     CurrentValue = Env.cfg.ws_enabled, 
-    Callback = function(v) Env.cfg.ws_enabled = v end
+    Callback = function(v) Env.cfg.ws_enabled = v; PlaySound(Sounds.Click) end
 })
 
 MovementTab:CreateSlider({
-    Name = "WalkSpeed <font transparency='0.6'>Pace</font>", 
+    Name = "WalkSpeed <font transparency='0.6'>Factor</font>", 
     Range = {16, 200}, 
     Increment = 1, 
     CurrentValue = Env.cfg.walkspeed, 
@@ -386,7 +439,7 @@ MovementTab:CreateDivider()
 MovementTab:CreateToggle({
     Name = "Enable JumpPower", 
     CurrentValue = Env.cfg.jp_enabled, 
-    Callback = function(v) Env.cfg.jp_enabled = v end
+    Callback = function(v) Env.cfg.jp_enabled = v; PlaySound(Sounds.Click) end
 })
 
 MovementTab:CreateSlider({
@@ -397,18 +450,19 @@ MovementTab:CreateSlider({
     Callback = function(v) Env.cfg.jumppower = v end
 })
 
-MovementTab:CreateSection("Ghost Mode")
+MovementTab:CreateSection("Physics")
 MovementTab:CreateToggle({
-    Name = "Noclip <font color='#ff99bb'>Phase</font>", 
+    Name = "Noclip <font color='#ff99bb'>Ghost</font>", 
     CurrentValue = Env.cfg.noclip, 
-    Callback = function(v) Env.cfg.noclip = v; updateNoclip() end
+    Callback = function(v) Env.cfg.noclip = v; updateNoclip(); PlaySound(Sounds.Click) end
 })
 
-MovementTab:CreateSection("Dream Warping")
+MovementTab:CreateSection("Teleports")
 
 local function tp(pos) 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then 
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(pos) 
+        PlaySound(Sounds.Success)
     end 
 end
 
@@ -416,67 +470,156 @@ MovementTab:CreateButton({ Name = "Yard", Callback = function() tp(Vector3.new(7
 MovementTab:CreateButton({ Name = "Prison Interior", Callback = function() tp(Vector3.new(913, 100, 2388)) end })
 MovementTab:CreateButton({ Name = "Armory", Callback = function() tp(Vector3.new(831, 100, 2233)) end })
 MovementTab:CreateButton({ Name = "Criminal Base", Callback = function() tp(Vector3.new(-931, 94, 2063)) end })
+MovementTab:CreateButton({ Name = "Instant Escape", Callback = function() 
+    local c = LocalPlayer.Character
+    local h = c and c:FindFirstChild("HumanoidRootPart")
+    if h then
+        local containers = Workspace:FindFirstChild("Shippingcontainers")
+        if containers then
+            pcall(function() h.CFrame = containers:GetChildren()[6]:GetChildren()[2].CFrame end)
+        else
+            h.CFrame = CFrame.new(-931, 94, 2063)
+        end
+        PlaySound(Sounds.Success)
+    end
+end })
 
 --// UTILITY TAB //--
 UtilityTab:CreateSection("Interaction")
 
 UtilityTab:CreateToggle({
-    Name = "Auto Grab <font color='#ff99bb'>Snatch</font>", 
+    Name = "Auto Grab <font color='#ff99bb'>Keycards/Guns</font>", 
     CurrentValue = Env.cfg.autograb, 
-    Callback = function(v) Env.cfg.autograb = v end
+    Callback = function(v) Env.cfg.autograb = v; PlaySound(Sounds.Click) end
 })
 
-UtilityTab:CreateSection("Exploits")
+UtilityTab:CreateSection("Bypasses")
 
 UtilityTab:CreateToggle({
-    Name = "Walk While Arrested <font transparency='0.6'>Anti-Stun</font>", 
+    Name = "Walk While Arrested", 
     CurrentValue = Env.cfg.shootarrested, 
-    Callback = function(v) Env.cfg.shootarrested = v end
+    Callback = function(v) Env.cfg.shootarrested = v; PlaySound(Sounds.Click) end
 })
 
+UtilityTab:CreateSection("Server")
+
+UtilityTab:CreateButton({
+    Name = "Server Hop <font transparency='0.6'>New Game</font>",
+    Callback = function()
+        PlaySound(Sounds.Success)
+        Rayfield:Notify({Title = "Server", Content = "Searching for a new server...", Duration = 3})
+        local x = {}
+        for _, v in ipairs(HttpService:JSONDecode(game:HttpGetAsync("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")).data) do
+            if type(v) == "table" and v.maxPlayers > v.playing and v.id ~= game.JobId then
+                x[#x + 1] = v.id
+            end
+        end
+        if #x > 0 then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, x[math.random(1, #x)], LocalPlayer)
+        else
+            Rayfield:Notify({Title = "Server", Content = "No other servers found.", Image = "alert-circle"})
+        end
+    end
+})
+
+UtilityTab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        PlaySound(Sounds.Success)
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+    end
+})
+
+
 --// CONFIG TAB //--
-ConfigTab:CreateSection("Brain State")
+ConfigTab:CreateSection("Configuration")
 
 local configNameInput = ""
 ConfigTab:CreateInput({
-    Name = "State Name", 
-    PlaceholderText = "Name this dream...", 
+    Name = "Config Name", 
+    PlaceholderText = "Enter name...", 
     RemoveTextAfterFocusLost = false, 
     Callback = function(t) configNameInput = t end
 })
 
 ConfigTab:CreateButton({
-    Name = "Save State", 
+    Name = "Save Config", 
     Callback = function() 
         if configNameInput == "" then 
-            Rayfield:Notify({Title = "Error", Content = "Name your dream first.", Image = "alert-circle"}) 
+            Rayfield:Notify({Title = "Error", Content = "Please enter a config name.", Image = "alert-circle"}) 
             return 
         end 
         if saveConfig(configNameInput) then 
-            Rayfield:Notify({Title = "Saved", Content = "State <b>" .. configNameInput.."</b> preserved.", Image = "check"}) 
+            PlaySound(Sounds.Success)
+            Rayfield:Notify({Title = "Saved", Content = "Config <b>" .. configNameInput.."</b> saved.", Image = "check"}) 
         end 
     end
 })
 
 ConfigTab:CreateButton({
-    Name = "Load State", 
+    Name = "Load Config", 
     Callback = function() 
         if configNameInput == "" then 
-            Rayfield:Notify({Title = "Error", Content = "Which dream to load?", Image = "alert-circle"}) 
+            Rayfield:Notify({Title = "Error", Content = "Enter a config name.", Image = "alert-circle"}) 
             return 
         end 
         if loadConfig(configNameInput) then 
-            Rayfield:Notify({Title = "Loaded", Content = "Entering state: <b>" .. configNameInput.."</b>", Image = "check"}) 
+            PlaySound(Sounds.Success)
+            Rayfield:Notify({Title = "Loaded", Content = "Config <b>" .. configNameInput.."</b> active.", Image = "check"}) 
         end 
     end
 })
 
-ConfigTab:CreateDivider()
-ConfigTab:CreateLabel("Casual Comas v" .. Env.Version, "info", Color3.fromRGB(180, 160, 200))
+--// CREDITS TAB //--
+CreditsTab:CreateSection("About")
+
+CreditsTab:CreateParagraph({
+    Title = "Casual Comas <font color='#ff99bb'>Cloud Edition</font>",
+    Content = [[
+Developed with <font color='#ff99bb'>♥</font> by the Casual Comas Team.
+
+<font transparency='0.6'>Version:</font> <b>]] .. Env.Version .. [[</b>
+<font transparency='0.6'>Status:</font> <font color='#88ff88'>Undetected</font>
+<font transparency='0.6'>License:</font> Private
+
+This script provides an enhanced experience for Prison Life. 
+Use responsibly.
+]]
+})
+
+CreditsTab:CreateDivider()
+CreditsTab:CreateSection("Management")
+
+CreditsTab:CreateButton({
+    Name = "Join Discord",
+    Callback = function()
+        setclipboard("https://discord.gg/yourinvite") -- Replace with your link
+        PlaySound(Sounds.Success)
+        Rayfield:Notify({Title = "Discord", Content = "Invite copied to clipboard!", Image = "link", Duration = 3})
+    end
+})
+
+CreditsTab:CreateButton({
+    Name = "Reload Hub",
+    Callback = function()
+        PlaySound(Sounds.Click)
+        Rayfield:Destroy()
+        -- You would put your loadstring here if you have one
+        Rayfield:Notify({Title = "Reload", Content = "Please re-execute the script.", Duration = 3})
+    end
+})
+
+CreditsTab:CreateButton({
+    Name = "Destroy UI <font color='#ff5555'>Panic</font>",
+    Callback = function()
+        PlaySound(Sounds.Error)
+        Rayfield:Destroy()
+    end
+})
 
 Rayfield:Notify({
     Title = "Casual Comas", 
-    Content = "You are now <b>asleep</b>. Good luck.", 
-    Image = "moon",
+    Content = "Welcome to the <b>Cloud</b>.", 
+    Image = "cloud",
     Duration = 5
 })
