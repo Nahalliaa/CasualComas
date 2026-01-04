@@ -1,63 +1,122 @@
-local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Load main script
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Nahalliaa/CasualComas/refs/heads/main/Theme"))()
+local HappyAnimations = {
+    Idle = {"129026910898635", "129026910898635"},
+    Walk = "76630051272791",
+    Run = "116462200642360",
+    Jump = "75290611992385",
+    Fall = "18537367238",
+    Climb = "12520982150",
+    Swim = "12518152696"
+}
 
--- Style the Rayfield prompt
-task.spawn(function()
-    task.wait(0.5)
+local Emotes = {
+    wave = 507770239,
+    point = 507770453,
+    dance = 507771019,
+    dance1 = 507771019,
+    dance2 = 507771955,
+    dance3 = 507772104,
+    laugh = 507770818,
+    cheer = 507770677
+}
 
-    local function findRayfield()
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            local rf = gui:FindFirstChild("Rayfield")
-            if rf then return rf end
+local function isR15(character)
+    local humanoid = character and character:FindFirstChild("Humanoid")
+    return humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+end
+
+local function applyHappyPack()
+    local character = LocalPlayer.Character
+    if not character or not isR15(character) then return end
+
+    local humanoid = character:WaitForChild("Humanoid")
+    local animate = character:WaitForChild("Animate")
+
+    local function setAnimID(name, id)
+        pcall(function()
+            local obj = animate:FindFirstChild(name)
+            if not obj then return end
+            if name == "idle" then
+                obj.Animation1.AnimationId = "rbxassetid://" .. id[1]
+                obj.Animation2.AnimationId = "rbxassetid://" .. id[2]
+            else
+                local anim = obj:GetChildren()[1]
+                if anim then
+                    anim.AnimationId = "rbxassetid://" .. id
+                end
+            end
+        end)
+    end
+
+    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+        track:Stop()
+    end
+
+    setAnimID("idle", HappyAnimations.Idle)
+    setAnimID("walk", HappyAnimations.Walk)
+    setAnimID("run", HappyAnimations.Run)
+    setAnimID("jump", HappyAnimations.Jump)
+    setAnimID("fall", HappyAnimations.Fall)
+    setAnimID("climb", HappyAnimations.Climb)
+    setAnimID("swim", HappyAnimations.Swim)
+
+    humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+end
+
+local currentEmoteTrack
+
+local function playEmote(id)
+    local character = LocalPlayer.Character
+    if not character or not isR15(character) then return end
+
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    if currentEmoteTrack then
+        currentEmoteTrack:Stop()
+        currentEmoteTrack = nil
+    end
+
+    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+        if track.Priority == Enum.AnimationPriority.Action then
+            track:Stop()
         end
     end
 
-    local function apply()
-        local rayfield = findRayfield()
-        if not rayfield then return end
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://" .. id
+    currentEmoteTrack = humanoid:LoadAnimation(anim)
+    currentEmoteTrack.Priority = Enum.AnimationPriority.Action
+    currentEmoteTrack.Looped = true
+    currentEmoteTrack:Play()
 
-        local prompt = rayfield:FindFirstChild("Prompt")
-        if not prompt then return end
-
-        if prompt:IsA("Frame") or prompt:IsA("TextButton") or prompt:IsA("ImageButton") then
-            prompt.BackgroundColor3 = Color3.fromRGB(18, 15, 30)
-            
-            -- Add shadow
-            if not prompt:FindFirstChild("Shadow") then
-                local shadow = Instance.new("ImageLabel")
-                shadow.Name = "Shadow"
-                shadow.Size = UDim2.new(1, 30, 1, 30)
-                shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-                shadow.BackgroundTransparency = 1
-                shadow.Image = "rbxassetid://6014261993"
-                shadow.ImageColor3 = Color3.fromRGB(4, 2, 8)
-                shadow.ImageTransparency = 0.5
-                shadow.ZIndex = prompt.ZIndex - 1
-                shadow.Parent = prompt
-            end
-
-            -- Add stroke outline
-            if not prompt:FindFirstChild("UIStroke") then
-                local stroke = Instance.new("UIStroke")
-                stroke.Color = Color3.fromRGB(65, 55, 90)
-                stroke.Thickness = 2
-                stroke.Parent = prompt
-            end
+    local c
+    c = RunService.RenderStepped:Connect(function()
+        if humanoid.MoveDirection.Magnitude > 0 then
+            if currentEmoteTrack then currentEmoteTrack:Stop() end
+            c:Disconnect()
         end
+    end)
+end
 
-        local title = prompt:FindFirstChild("Title")
-        if title and title:IsA("TextLabel") then
-            title.Text = "Casual Comas"
-            title.TextColor3 = Color3.fromRGB(245, 240, 255)
+LocalPlayer.Chatted:Connect(function(msg)
+    if not isR15(LocalPlayer.Character) then return end
+    msg = msg:lower()
+    for name, id in pairs(Emotes) do
+        if msg == name or msg == "/e " .. name then
+            playEmote(id)
         end
-    end
-
-    apply()
-
-    while task.wait(1.5) do
-        apply()
     end
 end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    applyHappyPack()
+end)
+
+if LocalPlayer.Character then
+    applyHappyPack()
+end
