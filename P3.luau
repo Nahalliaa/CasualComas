@@ -1,11 +1,12 @@
 --[[
-    Casual Comas // Premium UI Framework
+    Casual Comas // Premium PL Hub
     Theme: Nebula Storm (Deep Space Violets & Electric Pink)
-    Logic: PL_Hub Integration (Restored & Fixed)
+    Logic: PL_Hub Integration
 ]]
 
 local Env = getgenv().PL_Hub
 if not Env then return warn("Load Part 1 First!") end
+if not Env.Version then Env.Version = "1.0" end
 
 --// SERVICES
 local Players = game:GetService("Players")
@@ -13,24 +14,12 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
-
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
---// LOGIC VARIABLES
-if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
-if Env.cfg.punchaura == nil then Env.cfg.punchaura = false end
-if Env.cfg.ws_enabled == nil then Env.cfg.ws_enabled = false end
-if Env.cfg.walkspeed == nil then Env.cfg.walkspeed = 16 end
-if Env.cfg.jp_enabled == nil then Env.cfg.jp_enabled = false end
-if Env.cfg.jumppower == nil then Env.cfg.jumppower = 50 end
-if Env.cfg.noclip == nil then Env.cfg.noclip = false end
-if Env.cfg.shootarrested == nil then Env.cfg.shootarrested = false end
-if Env.cfg.autograb == nil then Env.cfg.autograb = false end
-
---// ASSET LIBRARY (FX)
+--// ASSET LIBRARY
 local Assets = {
     Sounds = {
         Click = "rbxassetid://6895079853",
@@ -80,16 +69,31 @@ end
 function FX:Click() self:Sound(Assets.Sounds.Click, 0.4, 1) self:Haptic("light") end
 function FX:Hover() self:Sound(Assets.Sounds.Hover, 0.25, 1.3) end
 function FX:Success() self:Sound(Assets.Sounds.Success, 0.6, 1.1) self:Haptic("heavy") end
+function FX:Notify() self:Sound(Assets.Sounds.Notification, 0.5, 1) self:Haptic("heavy") end
 
---// STYLING (The "Degrades")
-local function T(text, type)
-    -- Applies color without changing the name
-    local color = "#b4aaff" -- Default Info (Light Purple)
-    if type == "main" then color = "#ff91af" end -- Pink (Power)
-    if type == "risk" then color = "#ff6b9d" end -- Red/Pink (Risk)
-    if type == "good" then color = "#88ffaa" end -- Green (Good)
+--// STYLING ENGINE
+local Style = {}
+
+function Style:Tag(title, desc, mode)
+    local colors = {
+        info = "#8b9dc3",
+        warn = "#ffaa55",
+        risk = "#ff6b9d",
+        power = "#ff91af",
+        good = "#88ffaa"
+    }
     
-    return string.format("<b><font color='%s'>%s</font></b>", color, text)
+    local color = colors[mode:lower()] or colors.info
+    local weight = (mode == "risk" or mode == "power") and "<b>" or ""
+    
+    return string.format(
+        "<b>%s</b> <font color='%s'>%s%s%s</font>",
+        title, color, weight, desc, weight ~= "" and "</b>" or ""
+    )
+end
+
+function Style:Accent(text)
+    return "<b><font color='#ff91af'>" .. text .. "</font></b>"
 end
 
 --// THEME: NEBULA STORM
@@ -135,7 +139,17 @@ local NebulaStorm = {
     InputStroke = Color3.fromRGB(65, 55, 90)
 }
 
---// LOGIC FUNCTIONS (Noclip, Aura, etc)
+--// LOGIC INITIALIZATION (From Script 2)
+if Env.cfg.autoarrest == nil then Env.cfg.autoarrest = false end
+if Env.cfg.punchaura == nil then Env.cfg.punchaura = false end
+if Env.cfg.ws_enabled == nil then Env.cfg.ws_enabled = false end
+if Env.cfg.walkspeed == nil then Env.cfg.walkspeed = 16 end
+if Env.cfg.jp_enabled == nil then Env.cfg.jp_enabled = false end
+if Env.cfg.jumppower == nil then Env.cfg.jumppower = 50 end
+if Env.cfg.noclip == nil then Env.cfg.noclip = false end
+if Env.cfg.shootarrested == nil then Env.cfg.shootarrested = false end
+if Env.cfg.autograb == nil then Env.cfg.autograb = false end
+
 local noclipConnection = nil
 local function updateNoclip()
     if noclipConnection then
@@ -157,6 +171,7 @@ local function updateNoclip()
     end
 end
 
+-- Anti-Collision Hook
 task.spawn(function()
     pcall(function()
         local hook = newcclosure(function() return end)
@@ -171,6 +186,7 @@ task.spawn(function()
     end)
 end)
 
+-- Shoot while arrested loop
 task.spawn(function()
     while true do
         if Env.cfg.shootarrested then
@@ -186,6 +202,7 @@ task.spawn(function()
     end
 end)
 
+-- Auto Grab Logic
 local grab_dist_sq = 12 * 12
 local last_grab = 0
 local giver_remote = ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("GiverPressed")
@@ -217,6 +234,7 @@ local function updateGrabCache()
     end
 end
 
+-- Main Loop (Movement/Combat)
 RunService.Heartbeat:Connect(function()
     local myChar = LocalPlayer.Character
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -279,7 +297,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
---// CONFIG SYSTEM
+-- Config System
 local configFolder = "CasualComasConfigs"
 
 local function serializeColor3(color) return {R = color.R, G = color.G, B = color.B} end
@@ -291,10 +309,15 @@ end
 local function serializeConfig()
     local data = {}
     for key, value in pairs(Env.cfg) do
-        if typeof(value) == "Color3" then data[key] = {type = "Color3", value = serializeColor3(value)}
-        elseif typeof(value) == "EnumItem" then data[key] = {type = "EnumItem", value = tostring(value)}
-        elseif typeof(value) == "table" then data[key] = {type = "table", value = value}
-        else data[key] = {type = typeof(value), value = value} end
+        if typeof(value) == "Color3" then 
+            data[key] = {type = "Color3", value = serializeColor3(value)}
+        elseif typeof(value) == "EnumItem" then 
+            data[key] = {type = "EnumItem", value = tostring(value)}
+        elseif typeof(value) == "table" then 
+            data[key] = {type = "table", value = value}
+        else 
+            data[key] = {type = typeof(value), value = value} 
+        end
     end
     return HttpService:JSONEncode(data)
 end
@@ -302,17 +325,25 @@ end
 local function deserializeConfig(jsonString)
     local success, data = pcall(function() return HttpService:JSONDecode(jsonString) end)
     if not success then return nil end
+    
     local result = {}
     for key, entry in pairs(data) do
-        if entry.type == "Color3" then result[key] = deserializeColor3(entry.value)
+        if entry.type == "Color3" then 
+            result[key] = deserializeColor3(entry.value)
         elseif entry.type == "EnumItem" then
             local enumPath = entry.value:match("Enum%.(.+)")
             if enumPath then
                 local parts = enumPath:split(".")
-                if #parts == 2 and Enum[parts[1]] then result[key] = Enum[parts[1]][parts[2]] end
+                if #parts == 2 then
+                    local enumType = Enum[parts[1]]
+                    if enumType then result[key] = enumType[parts[2]] end
+                end
             end
-        elseif entry.type == "table" then result[key] = entry.value
-        else result[key] = entry.value end
+        elseif entry.type == "table" then 
+            result[key] = entry.value
+        else 
+            result[key] = entry.value 
+        end
     end
     return result
 end
@@ -320,7 +351,8 @@ end
 local function saveConfig(name)
     if not isfolder then return false end
     if not isfolder(configFolder) then makefolder(configFolder) end
-    writefile(configFolder .. "/" .. name .. ".json", serializeConfig())
+    local path = configFolder .. "/" .. name .. ".json"
+    writefile(path, serializeConfig())
     return true
 end
 
@@ -328,78 +360,98 @@ local function loadConfig(name)
     if not isfolder or not isfile then return false end
     local path = configFolder .. "/" .. name .. ".json"
     if not isfile(path) then return false end
-    local loaded = deserializeConfig(readfile(path))
+    local data = readfile(path)
+    local loaded = deserializeConfig(data)
     if not loaded then return false end
-    for key, value in pairs(loaded) do if Env.cfg[key] ~= nil then Env.cfg[key] = value end end
+    for key, value in pairs(loaded) do
+        if Env.cfg[key] ~= nil then Env.cfg[key] = value end
+    end
     if Env.updateEsp then Env.updateEsp() end
     if Env.updateC4Esp then Env.updateC4Esp() end
     updateNoclip()
     return true
 end
 
---// UI INITIALIZATION
+--// LOAD RAYFIELD
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- RichText & Effect Auto-Injector
-RunService.Heartbeat:Connect(function()
+--// RICHTEXT AUTO-ENABLE & HOVER FX (From Script 1)
+local internalEditor
+internalEditor = RunService.Heartbeat:Connect(function()
     for _, obj in ipairs(game:GetService("CoreGui"):GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("TextButton") then
             if not obj.RichText then obj.RichText = true end
             local p = obj.Parent
             if p and p:IsA("Frame") and p.Name:find("Section") then obj.RichText = true end
         end
-        -- Hover Effects
+        
         if obj:IsA("TextButton") and not obj:GetAttribute("Enhanced") then
             obj:SetAttribute("Enhanced", true)
             obj.MouseEnter:Connect(function()
                 FX:Hover()
-                TweenService:Create(obj, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = NebulaStorm.ElementBackgroundHover}):Play()
+                TweenService:Create(obj, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+                    BackgroundColor3 = NebulaStorm.ElementBackgroundHover
+                }):Play()
             end)
             obj.MouseLeave:Connect(function()
-                TweenService:Create(obj, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = NebulaStorm.ElementBackground}):Play()
+                TweenService:Create(obj, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+                    BackgroundColor3 = NebulaStorm.ElementBackground
+                }):Play()
             end)
         end
     end
 end)
 
--- Notification Override
+--// NOTIFICATION OVERRIDE (From Script 1)
 local originalNotify = Rayfield.Notify
 Rayfield.Notify = function(self, options)
     local notif = originalNotify(self, options)
     task.spawn(function()
         task.wait(0.00001)
+        local titleTarget = options.Title
+        local contentTarget = options.Content
         for _, obj in ipairs(game:GetService("CoreGui"):GetDescendants()) do
-            if obj:IsA("TextLabel") and (obj.Text == options.Title or obj.Text == options.Content) then
-                obj.RichText = true
+            if obj:IsA("TextLabel") then
+                if obj.Text == titleTarget or obj.Text == contentTarget then
+                    obj.RichText = true
+                end
             end
         end
     end)
+    
     task.spawn(function()
         task.wait(0.1)
-        local h = Instance.new("HapticEffect")
-        h.Type = Enum.HapticEffectType.GameplayExplosion
-        h.Parent = workspace
-        h:Play()
-        task.wait(0.2)
-        h:Destroy()
+        local notificationVibration = Instance.new("HapticEffect")
+        notificationVibration.Name = "Casual Comas Haptic"
+        notificationVibration.Type = Enum.HapticEffectType.GameplayExplosion
+        notificationVibration.Looped = true
+        notificationVibration.Parent = workspace
+        notificationVibration:Play()
+        task.wait(0.3)
+        notificationVibration:Stop()
+        notificationVibration.Ended:Connect(function() notificationVibration:Destroy() end)
     end)
     return notif
 end
 
--- Global Click
+--// GLOBAL CLICK FEEDBACK
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local gui = game:GetService("CoreGui"):FindFirstChild("Rayfield")
-        if gui and Players.LocalPlayer:GetMouse().Target and Players.LocalPlayer:GetMouse().Target:IsDescendantOf(gui) then
-            FX:Click()
+        if gui then
+            local mouse = Players.LocalPlayer:GetMouse()
+            if mouse.Target and mouse.Target:IsDescendantOf(gui) then
+                FX:Click()
+            end
         end
     end
 end)
 
+--// CREATE WINDOW
 local Window = Rayfield:CreateWindow({
     Name = "Casual Comas",
     LoadingTitle = "Casual Comas Hub",
-    LoadingSubtitle = "v" .. Env.Version,
+    LoadingSubtitle = "Nebula Storm v" .. Env.Version,
     Icon = "cloud-lightning",
     Theme = NebulaStorm,
     ConfigurationSaving = { Enabled = false },
@@ -408,40 +460,48 @@ local Window = Rayfield:CreateWindow({
 })
 
 --// TABS
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-local VisualsTab = Window:CreateTab("Visuals", 4483362458)
-local MovementTab = Window:CreateTab("Movement", 4483362458)
-local UtilityTab = Window:CreateTab("Utility", 4483362458)
-local ConfigTab = Window:CreateTab("Config", 4483362458)
+local CombatTab = Window:CreateTab("Combat", "crosshair")
+local VisualsTab = Window:CreateTab("Visuals", "eye")
+local MovementTab = Window:CreateTab("Movement", "wind")
+local UtilityTab = Window:CreateTab("Utility", "box")
+local ConfigTab = Window:CreateTab("Config", "settings")
 
---// COMBAT TAB
+--// COMBAT
 CombatTab:CreateSection("Silent Aim")
+
 CombatTab:CreateToggle({
-    Name = T("Enable Silent Aim", "main"), 
+    Name = Style:Tag("Silent Aim", "Legit Mode", "power"), 
     CurrentValue = Env.cfg.enabled, 
-    Callback = function(v) Env.cfg.enabled = v end
+    Callback = function(v) 
+        Env.cfg.enabled = v 
+        if v then FX:Success() end
+    end
 })
+
 CombatTab:CreateSlider({
-    Name = T("FOV Radius", "info"), 
+    Name = Style:Tag("FOV Radius", "Target Area", "info"), 
     Range = {10, 500}, 
     Increment = 1, 
     Suffix = "px", 
     CurrentValue = Env.cfg.fov, 
     Callback = function(v) Env.cfg.fov = v end
 })
+
 CombatTab:CreateToggle({
-    Name = T("Show FOV Circle", "info"), 
+    Name = Style:Tag("Show FOV", "Draw Circle", "info"), 
     CurrentValue = Env.cfg.showfov, 
     Callback = function(v) Env.cfg.showfov = v end
 })
+
 CombatTab:CreateSlider({
-    Name = T("Hit Chance", "risk"), 
+    Name = Style:Tag("Hit Chance", "Accuracy", "risk"), 
     Range = {0, 100}, 
     Increment = 1, 
     Suffix = "%", 
     CurrentValue = Env.cfg.hitchance, 
     Callback = function(v) Env.cfg.hitchance = v end
 })
+
 CombatTab:CreateDropdown({
     Name = "Target Part", 
     Options = Env.cfg.partslist, 
@@ -449,173 +509,129 @@ CombatTab:CreateDropdown({
     MultipleOptions = false, 
     Callback = function(o) Env.cfg.aimpart = o[1] end
 })
+
 CombatTab:CreateToggle({
-    Name = T("Random Parts", "info"), 
+    Name = Style:Tag("Random Parts", "Humanize Aim", "info"), 
     CurrentValue = Env.cfg.randomparts, 
     Callback = function(v) Env.cfg.randomparts = v end
 })
 
-CombatTab:CreateSection("Targeting")
+CombatTab:CreateSection("Checks")
+
 CombatTab:CreateToggle({
-    Name = T("Team Check", "good"), 
+    Name = Style:Tag("Team Check", "Ignore Allies", "good"), 
     CurrentValue = Env.cfg.teamcheck, 
     Callback = function(v) Env.cfg.teamcheck = v end
 })
+
 CombatTab:CreateToggle({
-    Name = T("Wall Check", "info"), 
+    Name = Style:Tag("Wall Check", "Visible Only", "good"), 
     CurrentValue = Env.cfg.wallcheck, 
     Callback = function(v) Env.cfg.wallcheck = v end
 })
-CombatTab:CreateToggle({
-    Name = T("Death Check", "info"), 
-    CurrentValue = Env.cfg.deathcheck, 
-    Callback = function(v) Env.cfg.deathcheck = v end
-})
-CombatTab:CreateToggle({
-    Name = T("ForceField Check", "info"), 
-    CurrentValue = Env.cfg.ffcheck, 
-    Callback = function(v) Env.cfg.ffcheck = v end
-})
-CombatTab:CreateToggle({
-    Name = T("Vehicle Check", "info"), 
-    CurrentValue = Env.cfg.vehiclecheck, 
-    Callback = function(v) Env.cfg.vehiclecheck = v end
-})
-CombatTab:CreateToggle({
-    Name = T("Hostile Check (Guards)", "risk"), 
-    CurrentValue = Env.cfg.hostilecheck, 
-    Callback = function(v) Env.cfg.hostilecheck = v end
-})
-CombatTab:CreateToggle({
-    Name = T("Trespass Check (Guards)", "risk"), 
-    CurrentValue = Env.cfg.trespasscheck, 
-    Callback = function(v) Env.cfg.trespasscheck = v end
-})
 
 CombatTab:CreateSection("Automation")
+
 CombatTab:CreateToggle({
-    Name = T("Auto Shoot", "main"), 
+    Name = Style:Tag("Auto Shoot", "Trigger Bot", "power"), 
     CurrentValue = Env.cfg.autoshoot, 
     Callback = function(v) Env.cfg.autoshoot = v end
 })
-CombatTab:CreateSlider({
-    Name = T("Shot Delay", "info"), 
-    Range = {0.05, 0.5}, 
-    Increment = 0.01, 
-    Suffix = "s", 
-    CurrentValue = Env.cfg.autoshootdelay, 
-    Callback = function(v) Env.cfg.autoshootdelay = v end
-})
-CombatTab:CreateSlider({
-    Name = T("Start Delay", "info"), 
-    Range = {0, 1}, 
-    Increment = 0.05, 
-    Suffix = "s", 
-    CurrentValue = Env.cfg.autoshootstartdelay, 
-    Callback = function(v) Env.cfg.autoshootstartdelay = v end
-})
+
 CombatTab:CreateToggle({
-    Name = T("Auto Arrest (Guard)", "risk"), 
+    Name = Style:Tag("Auto Arrest", "Guard Only", "risk"), 
     CurrentValue = Env.cfg.autoarrest, 
     Callback = function(v) Env.cfg.autoarrest = v end
 })
+
 CombatTab:CreateToggle({
-    Name = T("Punch Aura", "risk"), 
+    Name = Style:Tag("Punch Aura", "Melee Aura", "risk"), 
     CurrentValue = Env.cfg.punchaura, 
     Callback = function(v) Env.cfg.punchaura = v end
 })
 
 CombatTab:CreateSection("Shield Breaker")
+
 CombatTab:CreateToggle({
-    Name = T("Enable Shield Breaker", "main"), 
+    Name = Style:Tag("Shield Breaker", "Bypass Forcefield", "power"), 
     CurrentValue = Env.cfg.shieldbreaker, 
     Callback = function(v) Env.cfg.shieldbreaker = v end
 })
-CombatTab:CreateSlider({
-    Name = T("Head Shot Chance", "risk"), 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = Env.cfg.shieldheadchance, 
-    Callback = function(v) Env.cfg.shieldheadchance = v end
-})
 
---// VISUALS TAB
-VisualsTab:CreateSection("Player ESP")
+--// VISUALS
+VisualsTab:CreateSection("ESP System")
+
 VisualsTab:CreateToggle({
-    Name = T("Enable ESP", "main"), 
+    Name = Style:Tag("Player ESP", "Wallhack", "power"), 
     CurrentValue = Env.cfg.esp, 
     Callback = function(v) Env.cfg.esp = v; Env.updateEsp() end
 })
+
 VisualsTab:CreateToggle({
-    Name = T("Team Check", "good"), 
+    Name = Style:Tag("Team Check", "Hide Allies", "info"), 
     CurrentValue = Env.cfg.espteamcheck, 
     Callback = function(v) Env.cfg.espteamcheck = v; Env.updateEsp() end
 })
+
 VisualsTab:CreateToggle({
-    Name = T("Use Team Colors", "info"), 
+    Name = Style:Tag("Team Colors", "Use Team Color", "info"), 
     CurrentValue = Env.cfg.espuseteamcolors, 
     Callback = function(v) Env.cfg.espuseteamcolors = v; Env.updateEsp() end
 })
-VisualsTab:CreateSlider({
-    Name = T("Max Distance", "info"), 
-    Range = {50, 1000}, 
-    Increment = 10, 
-    Suffix = "m", 
-    CurrentValue = Env.cfg.espmaxdist, 
-    Callback = function(v) Env.cfg.espmaxdist = v; Env.updateEsp() end
-})
 
-VisualsTab:CreateSection("Team Colors")
+VisualsTab:CreateSection("Colors")
+
 VisualsTab:CreateColorPicker({
-    Name = "Guards", 
+    Name = "Guards Color", 
     Color = Env.cfg.espguards, 
     Callback = function(v) Env.cfg.espguards = v; Env.updateEsp() end
 })
+
 VisualsTab:CreateColorPicker({
-    Name = "Inmates", 
+    Name = "Inmates Color", 
     Color = Env.cfg.espinmates, 
     Callback = function(v) Env.cfg.espinmates = v; Env.updateEsp() end
 })
+
 VisualsTab:CreateColorPicker({
-    Name = "Criminals", 
+    Name = "Criminals Color", 
     Color = Env.cfg.espcriminals, 
     Callback = function(v) Env.cfg.espcriminals = v; Env.updateEsp() end
 })
 
-VisualsTab:CreateSection("C4 ESP")
+VisualsTab:CreateSection("Items")
+
 VisualsTab:CreateToggle({
-    Name = T("Enable C4 ESP", "risk"), 
+    Name = Style:Tag("C4 ESP", "Explosives", "warn"), 
     CurrentValue = Env.cfg.c4esp, 
     Callback = function(v) Env.cfg.c4esp = v; Env.updateC4Esp() end
 })
-VisualsTab:CreateColorPicker({
-    Name = "C4 Color", 
-    Color = Env.cfg.c4espcolor, 
-    Callback = function(v) Env.cfg.c4espcolor = v; Env.updateC4Esp() end
-})
 
---// MOVEMENT TAB
-MovementTab:CreateSection("Speed")
+--// MOVEMENT
+MovementTab:CreateSection("Character")
+
 MovementTab:CreateToggle({
-    Name = T("Enable WalkSpeed", "main"), 
+    Name = Style:Tag("Walk Speed", "Modify Speed", "power"), 
     CurrentValue = Env.cfg.ws_enabled, 
     Callback = function(v) Env.cfg.ws_enabled = v end
 })
+
 MovementTab:CreateSlider({
-    Name = T("WalkSpeed", "info"), 
+    Name = "Speed Value", 
     Range = {16, 200}, 
     Increment = 1, 
     CurrentValue = Env.cfg.walkspeed, 
     Callback = function(v) Env.cfg.walkspeed = v end
 })
+
 MovementTab:CreateToggle({
-    Name = T("Enable JumpPower", "main"), 
+    Name = Style:Tag("Jump Power", "Modify Jump", "power"), 
     CurrentValue = Env.cfg.jp_enabled, 
     Callback = function(v) Env.cfg.jp_enabled = v end
 })
+
 MovementTab:CreateSlider({
-    Name = T("JumpPower", "info"), 
+    Name = "Jump Value", 
     Range = {50, 500}, 
     Increment = 1, 
     CurrentValue = Env.cfg.jumppower, 
@@ -623,44 +639,34 @@ MovementTab:CreateSlider({
 })
 
 MovementTab:CreateSection("Physics")
+
 MovementTab:CreateToggle({
-    Name = T("Noclip", "risk"), 
+    Name = Style:Tag("No Clip", "Walk Through Walls", "risk"), 
     CurrentValue = Env.cfg.noclip, 
     Callback = function(v) 
         Env.cfg.noclip = v 
         updateNoclip()
+        if v then FX:Sound(Assets.Sounds.Whoosh, 0.6, 0.8) end
     end
 })
 
 MovementTab:CreateSection("Teleports")
+
 local function tp(pos) 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then 
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(pos) 
         FX:Sound(Assets.Sounds.Whoosh, 0.5, 1.2)
     end 
 end
+
+MovementTab:CreateButton({ Name = "Yard", Callback = function() tp(Vector3.new(780, 98, 2470)) end })
+MovementTab:CreateButton({ Name = "Prison Interior", Callback = function() tp(Vector3.new(913, 100, 2388)) end })
+MovementTab:CreateButton({ Name = "Armory", Callback = function() tp(Vector3.new(831, 100, 2233)) end })
+MovementTab:CreateButton({ Name = "Cafeteria", Callback = function() tp(Vector3.new(905, 100, 2316)) end })
+MovementTab:CreateButton({ Name = "Criminal Base", Callback = function() tp(Vector3.new(-931, 94, 2063)) end })
+
 MovementTab:CreateButton({
-    Name = T("Yard", "info"), 
-    Callback = function() tp(Vector3.new(780, 98, 2470)) end
-})
-MovementTab:CreateButton({
-    Name = T("Prison Interior", "info"), 
-    Callback = function() tp(Vector3.new(913, 100, 2388)) end
-})
-MovementTab:CreateButton({
-    Name = T("Armory", "risk"), 
-    Callback = function() tp(Vector3.new(831, 100, 2233)) end
-})
-MovementTab:CreateButton({
-    Name = T("Cafeteria", "info"), 
-    Callback = function() tp(Vector3.new(905, 100, 2316)) end
-})
-MovementTab:CreateButton({
-    Name = T("Criminal Base", "risk"), 
-    Callback = function() tp(Vector3.new(-931, 94, 2063)) end
-})
-MovementTab:CreateButton({
-    Name = T("Instant Escape", "good"), 
+    Name = Style:Tag("Instant Escape", "Become Criminal", "risk"), 
     Callback = function()
         local c = LocalPlayer.Character
         local h = c and c:FindFirstChild("HumanoidRootPart")
@@ -680,88 +686,72 @@ MovementTab:CreateButton({
     end
 })
 
---// UTILITY TAB
+--// UTILITY
 UtilityTab:CreateSection("Bypass")
+
 UtilityTab:CreateToggle({
-    Name = T("Walk While Arrested", "risk"), 
+    Name = Style:Tag("Arrest Bypass", "Shoot While Arrested", "risk"), 
     CurrentValue = Env.cfg.shootarrested, 
     Callback = function(v) Env.cfg.shootarrested = v end
 })
 
-UtilityTab:CreateSection("Item Pickup")
+UtilityTab:CreateSection("Items")
+
 UtilityTab:CreateToggle({
-    Name = T("Auto Grab Items", "good"), 
+    Name = Style:Tag("Auto Grab", "Keycards & Guns", "good"), 
     CurrentValue = Env.cfg.autograb, 
     Callback = function(v) Env.cfg.autograb = v end
 })
 
---// CONFIG TAB
-ConfigTab:CreateSection("Configuration Manager")
+--// CONFIG
+ConfigTab:CreateSection("Manager")
+
 local configNameInput = ""
 ConfigTab:CreateInput({
-    Name = T("Config Name", "info"), 
+    Name = "Config Name", 
     PlaceholderText = "Enter config name...", 
     RemoveTextAfterFocusLost = false, 
     Callback = function(t) configNameInput = t end
 })
+
 ConfigTab:CreateButton({
-    Name = T("Save Config", "good"), 
+    Name = Style:Tag("Save Config", "Write to File", "info"), 
     Callback = function() 
         if configNameInput == "" then 
-            Rayfield:Notify({
-                Title = "Config", 
-                Content = "Please enter a config name!", 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Config", Content = "Please enter a config name!", Duration = 3, Image = "alert-circle"}) 
             return 
         end 
         if saveConfig(configNameInput) then 
             FX:Success()
-            Rayfield:Notify({
-                Title = "Config Saved", 
-                Content = "Saved: " .. configNameInput, 
-                Duration = 3
-            }) 
+            Rayfield:Notify({Title = "Saved", Content = "Config saved successfully", Duration = 3, Image = "check"}) 
         else 
-            Rayfield:Notify({
-                Title = "Config Error", 
-                Content = "Failed to save config!", 
-                Duration = 3
-            }) 
-        end 
-    end
-})
-ConfigTab:CreateButton({
-    Name = T("Load Config", "risk"), 
-    Callback = function() 
-        if configNameInput == "" then 
-            Rayfield:Notify({
-                Title = "Config", 
-                Content = "Please enter a config name!", 
-                Duration = 3
-            }) 
-            return 
-        end 
-        if loadConfig(configNameInput) then 
-            FX:Success()
-            Rayfield:Notify({
-                Title = "Config Loaded", 
-                Content = "Loaded: " .. configNameInput, 
-                Duration = 3
-            }) 
-        else 
-            Rayfield:Notify({
-                Title = "Config Error", 
-                Content = "Config not found!", 
-                Duration = 3
-            }) 
+            FX:Sound(Assets.Sounds.Error, 0.6, 1)
+            Rayfield:Notify({Title = "Error", Content = "Failed to save config!", Duration = 3, Image = "x-circle"}) 
         end 
     end
 })
 
-ConfigTab:CreateSection("Reset")
 ConfigTab:CreateButton({
-    Name = T("Reset to Defaults", "risk"), 
+    Name = Style:Tag("Load Config", "Read from File", "info"), 
+    Callback = function() 
+        if configNameInput == "" then 
+            Rayfield:Notify({Title = "Config", Content = "Please enter a config name!", Duration = 3, Image = "alert-circle"}) 
+            return 
+        end 
+        if loadConfig(configNameInput) then 
+            FX:Sound(Assets.Sounds.PowerUp, 0.6, 1)
+            Rayfield:Notify({Title = "Loaded", Content = "Config loaded successfully", Duration = 3, Image = "check"}) 
+        else 
+            FX:Sound(Assets.Sounds.Error, 0.6, 1)
+            Rayfield:Notify({Title = "Error", Content = "Config not found!", Duration = 3, Image = "x-circle"}) 
+        end 
+    end
+})
+
+ConfigTab:CreateSection("Danger Zone")
+
+ConfigTab:CreateButton({
+    Name = Style:Tag("Reset Defaults", "Clear Settings", "risk"), 
     Callback = function() 
         Env.cfg.enabled = true
         Env.cfg.teamcheck = false
@@ -775,19 +765,19 @@ ConfigTab:CreateButton({
         Env.cfg.jp_enabled = false
         updateNoclip()
         Env.updateEsp() 
-        FX:Sound(Assets.Sounds.Whoosh, 0.5, 0.8)
-        Rayfield:Notify({
-            Title = "Reset Complete", 
-            Content = "All settings restored to default", 
-            Duration = 3
-        }) 
+        FX:Sound(Assets.Sounds.Whoosh, 0.6, 1)
+        Rayfield:Notify({Title = "Reset", Content = "Settings restored to default", Duration = 3, Image = "refresh-cw"}) 
     end
 })
 
-task.wait(0.2)
+--// STARTUP
+task.wait(0.3)
 FX:Sound(Assets.Sounds.PowerUp, 0.7, 1)
+FX:Haptic("heavy")
+
 Rayfield:Notify({
-    Title = "Casual Comas", 
-    Content = "Nebula Storm Theme Loaded", 
-    Duration = 5
+    Title = "Casual Comas",
+    Content = "Premium Hub Loaded\nNebula Storm Edition",
+    Duration = 4,
+    Image = "zap"
 })
