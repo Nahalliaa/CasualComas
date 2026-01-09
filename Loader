@@ -1,122 +1,109 @@
-local Players = game:GetService("Players")
+local Env = getgenv().PL_Hub
+if not Env then return warn("Load main hub first!") end
+
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local HappyAnimations = {
-    Idle = {"129026910898635", "129026910898635"},
-    Walk = "76630051272791",
-    Run = "116462200642360",
-    Jump = "75290611992385",
-    Fall = "18537367238",
-    Climb = "12520982150",
-    Swim = "12518152696"
-}
-
-local Emotes = {
-    wave = 507770239,
-    point = 507770453,
-    dance = 507771019,
-    dance1 = 507771019,
-    dance2 = 507771955,
-    dance3 = 507772104,
-    laugh = 507770818,
-    cheer = 507770677
-}
-
-local function isR15(character)
-    local humanoid = character and character:FindFirstChild("Humanoid")
-    return humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+-- Vehicle configuration
+if not Env.cfg.vehicle then
+    Env.cfg.vehicle = {
+        enabled = false,
+        maxSpeed = 100,
+        turnSpeed = 2,
+        torque = 100,
+        steerFloat = 1,
+    }
 end
 
-local function applyHappyPack()
-    local character = LocalPlayer.Character
-    if not character or not isR15(character) then return end
+-- Vehicle references
+local currentVehicle = nil
+local originalVehicleStats = {}
+local vehicleConnection = nil
 
-    local humanoid = character:WaitForChild("Humanoid")
-    local animate = character:WaitForChild("Animate")
+-- Find vehicle seat
+local function findVehicle()
+    local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    if humanoid and humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat") then
+        return humanoid.SeatPart
+    end
+    return nil
+end
 
-    local function setAnimID(name, id)
+-- Apply vehicle modifications
+local function applyVehicleMods(vehicle)
+    if not vehicle or not Env.cfg.vehicle.enabled then return end
+    
+    if not originalVehicleStats[vehicle] then
+        originalVehicleStats[vehicle] = {
+            MaxSpeed = vehicle.MaxSpeed,
+            TurnSpeed = vehicle.TurnSpeed,
+            Torque = vehicle.Torque,
+            Steer = vehicle.Steer
+        }
+    end
+    
+    vehicle.MaxSpeed = Env.cfg.vehicle.maxSpeed
+    vehicle.TurnSpeed = Env.cfg.vehicle.turnSpeed
+    vehicle.Torque = Env.cfg.vehicle.torque
+    vehicle.Steer = Env.cfg.vehicle.steerFloat
+end
+
+-- Stop vehicle monitoring
+local function stopVehicleMonitoring()
+    if vehicleConnection then
+        vehicleConnection:Disconnect()
+        vehicleConnection = nil
+    end
+    
+    if currentVehicle and originalVehicleStats[currentVehicle] then
+        local stats = originalVehicleStats[currentVehicle]
         pcall(function()
-            local obj = animate:FindFirstChild(name)
-            if not obj then return end
-            if name == "idle" then
-                obj.Animation1.AnimationId = "rbxassetid://" .. id[1]
-                obj.Animation2.AnimationId = "rbxassetid://" .. id[2]
-            else
-                local anim = obj:GetChildren()[1]
-                if anim then
-                    anim.AnimationId = "rbxassetid://" .. id
-                end
-            end
+            currentVehicle.MaxSpeed = stats.MaxSpeed
+            currentVehicle.TurnSpeed = stats.TurnSpeed
+            currentVehicle.Torque = stats.Torque
+            currentVehicle.Steer = stats.Steer
         end)
     end
-
-    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-        track:Stop()
-    end
-
-    setAnimID("idle", HappyAnimations.Idle)
-    setAnimID("walk", HappyAnimations.Walk)
-    setAnimID("run", HappyAnimations.Run)
-    setAnimID("jump", HappyAnimations.Jump)
-    setAnimID("fall", HappyAnimations.Fall)
-    setAnimID("climb", HappyAnimations.Climb)
-    setAnimID("swim", HappyAnimations.Swim)
-
-    humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+    
+    currentVehicle = nil
 end
 
-local currentEmoteTrack
-
-local function playEmote(id)
-    local character = LocalPlayer.Character
-    if not character or not isR15(character) then return end
-
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-
-    if currentEmoteTrack then
-        currentEmoteTrack:Stop()
-        currentEmoteTrack = nil
+-- Monitor vehicle state
+local function startVehicleMonitoring()
+    if vehicleConnection then
+        vehicleConnection:Disconnect()
     end
-
-    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-        if track.Priority == Enum.AnimationPriority.Action then
-            track:Stop()
+    
+    vehicleConnection = RunService.Heartbeat:Connect(function()
+        local vehicle = findVehicle()
+        
+        if vehicle ~= currentVehicle then
+            currentVehicle = vehicle
+            if vehicle then
+                applyVehicleMods(vehicle)
+            end
         end
-    end
-
-    local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://" .. id
-    currentEmoteTrack = humanoid:LoadAnimation(anim)
-    currentEmoteTrack.Priority = Enum.AnimationPriority.Action
-    currentEmoteTrack.Looped = true
-    currentEmoteTrack:Play()
-
-    local c
-    c = RunService.RenderStepped:Connect(function()
-        if humanoid.MoveDirection.Magnitude > 0 then
-            if currentEmoteTrack then currentEmoteTrack:Stop() end
-            c:Disconnect()
+        
+        if currentVehicle then
+            applyVehicleMods(currentVehicle)
         end
     end)
 end
 
-LocalPlayer.Chatted:Connect(function(msg)
-    if not isR15(LocalPlayer.Character) then return end
-    msg = msg:lower()
-    for name, id in pairs(Emotes) do
-        if msg == name or msg == "/e " .. name then
-            playEmote(id)
-        end
+-- Handle character respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    if Env.cfg.vehicle and Env.cfg.vehicle.enabled then
+        task.wait(1)
+        startVehicleMonitoring()
     end
 end)
 
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    applyHappyPack()
-end)
-
-if LocalPlayer.Character then
-    applyHappyPack()
+-- Start monitoring if enabled
+if Env.cfg.vehicle and Env.cfg.vehicle.enabled then
+    startVehicleMonitoring()
 end
+
+-- Export functions to global environment
+getgenv().startVehicleMonitoring = startVehicleMonitoring
+getgenv().stopVehicleMonitoring = stopVehicleMonitoring
