@@ -26,6 +26,9 @@ local vehicleConnection = nil
 local FLYING = false
 local flyKeyDown = nil
 local flyKeyUp = nil
+local flyLoop = nil
+local BG = nil
+local BV = nil
 
 -- Mobile detection
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -43,7 +46,8 @@ end
 local function getVehicleRoot()
     if not currentVehicle then return nil end
     local vehicleModel = currentVehicle.Parent
-    return vehicleModel and (vehicleModel.PrimaryPart or vehicleModel:FindFirstChild("Main") or currentVehicle)
+    if not vehicleModel then return nil end
+    return vehicleModel.PrimaryPart or vehicleModel:FindFirstChild("Main") or vehicleModel:FindFirstChild("Body") or currentVehicle
 end
 
 -- Apply vehicle modifications
@@ -65,59 +69,102 @@ local function applyVehicleMods(vehicle)
     vehicle.Steer = Env.cfg.vehicle.steerFloat
 end
 
+-- Stop fly
+local function stopVehicleFly()
+    print("[VFly] Stopping...")
+    FLYING = false
+    
+    -- Disconnect fly loop
+    if flyLoop then
+        flyLoop:Disconnect()
+        flyLoop = nil
+    end
+    
+    -- Disconnect input handlers
+    if flyKeyDown then
+        flyKeyDown:Disconnect()
+        flyKeyDown = nil
+    end
+    if flyKeyUp then
+        flyKeyUp:Disconnect()
+        flyKeyUp = nil
+    end
+    
+    -- Destroy BodyMovers
+    if BG then
+        BG:Destroy()
+        BG = nil
+    end
+    if BV then
+        BV:Destroy()
+        BV = nil
+    end
+    
+    -- Remove mobile UI
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("VehicleFlyMobileUI")
+    if gui then gui:Destroy() end
+    
+    pcall(function()
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    end)
+end
+
 -- Vehicle Fly (Infinite Yield style)
 local function startVehicleFly()
+    print("[VFly] Starting...")
+    
     local T = getVehicleRoot()
-    if not T then return end
+    if not T then 
+        warn("[VFly] No root found!")
+        return 
+    end
+    
+    print("[VFly] Using:", T.Name)
+    
+    -- Stop existing fly
+    stopVehicleFly()
     
     local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
     local lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
     local SPEED = 0
     
-    local function FLY()
-        FLYING = true
-        local BG = Instance.new('BodyGyro')
-        local BV = Instance.new('BodyVelocity')
-        BG.P = 9e4
-        BG.Parent = T
-        BV.Parent = T
-        BG.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-        BG.cframe = T.CFrame
-        BV.velocity = Vector3.new(0, 0, 0)
-        BV.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    FLYING = true
+    BG = Instance.new('BodyGyro')
+    BV = Instance.new('BodyVelocity')
+    BG.P = 9e4
+    BG.Parent = T
+    BV.Parent = T
+    BG.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    BG.cframe = T.CFrame
+    BV.velocity = Vector3.new(0, 0, 0)
+    BV.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    
+    -- Fly loop
+    flyLoop = RunService.Heartbeat:Connect(function()
+        if not FLYING or not Env.cfg.vehicle.fly or not T.Parent then
+            stopVehicleFly()
+            return
+        end
         
-        task.spawn(function()
-            repeat wait()
-                if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
-                    SPEED = 50
-                elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
-                    SPEED = 0
-                end
-                
-                if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
-                    BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (CONTROL.F + CONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
-                    lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
-                elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
-                    BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (lCONTROL.F + lCONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(lCONTROL.L + lCONTROL.R, (lCONTROL.F + lCONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
-                else
-                    BV.velocity = Vector3.new(0, 0, 0)
-                end
-                
-                BG.cframe = workspace.CurrentCamera.CoordinateFrame
-            until not FLYING
-            
-            CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
-            lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+        if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
+            SPEED = 50
+        elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
             SPEED = 0
-            BG:Destroy()
-            BV:Destroy()
-        end)
-    end
+        end
+        
+        if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
+            BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (CONTROL.F + CONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
+            lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
+        elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
+            BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (lCONTROL.F + lCONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(lCONTROL.L + lCONTROL.R, (lCONTROL.F + lCONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
+        else
+            BV.velocity = Vector3.new(0, 0, 0)
+        end
+        
+        BG.cframe = workspace.CurrentCamera.CoordinateFrame
+    end)
     
     -- Keyboard controls
-    if flyKeyDown then flyKeyDown:Disconnect() end
-    if flyKeyUp then flyKeyUp:Disconnect() end
-    
     flyKeyDown = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         local KEY = input.KeyCode
@@ -159,23 +206,23 @@ local function startVehicleFly()
     if isMobile then
         local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
         if humanoid then
-            humanoid:GetPropertyChangedSignal("MoveVector"):Connect(function()
-                if not FLYING then return end
-                local moveVector = humanoid.MoveVector
-                
-                -- Convert joystick input to fly controls
-                CONTROL.F = moveVector.Z < 0 and (-moveVector.Z * Env.cfg.vehicle.flySpeed) or 0
-                CONTROL.B = moveVector.Z > 0 and (-moveVector.Z * Env.cfg.vehicle.flySpeed) or 0
-                CONTROL.L = moveVector.X < 0 and (moveVector.X * Env.cfg.vehicle.flySpeed) or 0
-                CONTROL.R = moveVector.X > 0 and (moveVector.X * Env.cfg.vehicle.flySpeed) or 0
+            task.spawn(function()
+                while FLYING do
+                    local moveVector = humanoid.MoveVector
+                    
+                    -- Convert joystick input to fly controls
+                    CONTROL.F = moveVector.Z < 0 and (-moveVector.Z * Env.cfg.vehicle.flySpeed) or 0
+                    CONTROL.B = moveVector.Z > 0 and (-moveVector.Z * Env.cfg.vehicle.flySpeed) or 0
+                    CONTROL.L = moveVector.X < 0 and (moveVector.X * Env.cfg.vehicle.flySpeed) or 0
+                    CONTROL.R = moveVector.X > 0 and (moveVector.X * Env.cfg.vehicle.flySpeed) or 0
+                    
+                    task.wait(0.05)
+                end
             end)
         end
         
         -- Create mobile up/down buttons
-        local screenGui = LocalPlayer.PlayerGui:FindFirstChild("VehicleFlyMobileUI")
-        if screenGui then screenGui:Destroy() end
-        
-        screenGui = Instance.new("ScreenGui")
+        local screenGui = Instance.new("ScreenGui")
         screenGui.Name = "VehicleFlyMobileUI"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -234,29 +281,7 @@ local function startVehicleFly()
         end)
     end
     
-    FLY()
-end
-
--- Stop fly
-local function stopVehicleFly()
-    FLYING = false
-    
-    if flyKeyDown then
-        flyKeyDown:Disconnect()
-        flyKeyDown = nil
-    end
-    if flyKeyUp then
-        flyKeyUp:Disconnect()
-        flyKeyUp = nil
-    end
-    
-    -- Remove mobile UI
-    local gui = LocalPlayer.PlayerGui:FindFirstChild("VehicleFlyMobileUI")
-    if gui then gui:Destroy() end
-    
-    pcall(function()
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-    end)
+    print("[VFly] Started successfully!")
 end
 
 -- Stop vehicle monitoring
@@ -327,3 +352,4 @@ getgenv().startVehicleMonitoring = startVehicleMonitoring
 getgenv().stopVehicleMonitoring = stopVehicleMonitoring
 getgenv().startVehicleFly = startVehicleFly
 getgenv().stopVehicleFly = stopVehicleFly
+getgenv().getCurrentVehicle = function() return currentVehicle end
