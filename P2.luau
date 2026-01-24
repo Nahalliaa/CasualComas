@@ -10,9 +10,9 @@ local ReplicatedStorage = Env.Services.ReplicatedStorage
 
 -- // DRAWING OBJECTS //
 local fovCircle = Drawing.new("Circle")
-fovCircle.Color = Color3.fromRGB(255, 0, 0)
+fovCircle.Color = Color3.fromRGB(180, 120, 220)
 fovCircle.Radius = Env.cfg.fov
-fovCircle.Transparency = 0.8
+fovCircle.Transparency = 0.5
 fovCircle.Filled = false
 fovCircle.NumSides = 64
 fovCircle.Thickness = 1
