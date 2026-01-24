@@ -1,10 +1,8 @@
--- [[ PART 1: CORE ]] --
-getgenv().PL_Hub = {} 
+getgenv().PL_Hub = getgenv().PL_Hub or {}
 local Env = getgenv().PL_Hub
 
 Env.Version = "1.0.0"
 
--- // SERVICES //
 Env.Services = {
     Players = game:GetService("Players"),
     RunService = game:GetService("RunService"),
@@ -16,7 +14,8 @@ Env.Services = {
     GuiService = game:GetService("GuiService"),
     Teams = game:GetService("Teams"),
     HttpService = game:GetService("HttpService"),
-    Debris = game:GetService("Debris")
+    Debris = game:GetService("Debris"),
+    SoundService = game:GetService("SoundService")
 }
 
 local Players = Env.Services.Players
@@ -28,7 +27,6 @@ Env.Teams = {
     Criminals = Env.Services.Teams:FindFirstChild("Criminals")
 }
 
--- // CONFIGURATION TABLE (Global) //
 Env.cfg = {
     enabled = true,
     teamcheck = false,
@@ -87,10 +85,33 @@ Env.cfg = {
     c4esptoggle = Enum.KeyCode.B,
     c4espcolor = Color3.fromRGB(80, 255, 80),
     c4espmaxdist = 200,
-    c4espshowdist = true
+    c4espshowdist = true,
+    hitsound = {
+        enabled = true,
+        volume = 2,
+        normal = 1129547534,
+        headshot = 108290646184559
+    },
+    tracer = {
+        enabled = true,
+        color = Color3.fromRGB(255, 255, 255),
+        thickness = 0.12,
+        lifetime = 0.15,
+        fade = 0.2
+    },
+    hitmarker = {
+        enabled = true,
+        thickness = 1.5,
+        length = 6,
+        gap = 3,
+        expand = 8,
+        headExpand = 14
+    },
+    crosshair = {
+        customImage = ""
+    }
 }
 
--- // CORE VARIABLES //
 Env.wallParams = RaycastParams.new()
 Env.wallParams.FilterType = Enum.RaycastFilterType.Exclude
 Env.wallParams.IgnoreWater = true
@@ -107,7 +128,6 @@ Env.vars = {
     currentStickiness = 0
 }
 
--- // HELPER FUNCTIONS //
 Env.partMap = {
     ["Torso"] = {"Torso", "UpperTorso", "LowerTorso"},
     ["LeftArm"] = {"Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand"},
@@ -128,6 +148,38 @@ function Env.getPart(char, name)
         end
     end
     return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+end
+
+function Env.isHeadshot(hitPart)
+    if hitPart.Name == "Head" then return true end
+    
+    local char = hitPart:FindFirstAncestorOfClass("Model")
+    if not char then return false end
+    
+    local head = char:FindFirstChild("Head")
+    if not head then return false end
+    
+    if hitPart:IsA("Accessory") or hitPart:IsA("Hat") then
+        local attachment = hitPart:FindFirstChildOfClass("Attachment")
+        if attachment then
+            local headAttachment = head:FindFirstChild(attachment.Name)
+            if headAttachment then return true end
+        end
+    end
+    
+    if hitPart.Parent and hitPart.Parent:IsA("Accessory") then
+        local accessory = hitPart.Parent
+        local handle = accessory:FindFirstChild("Handle")
+        if handle then
+            local attachment = handle:FindFirstChildOfClass("Attachment")
+            if attachment then
+                local headAttachment = head:FindFirstChild(attachment.Name)
+                if headAttachment then return true end
+            end
+        end
+    end
+    
+    return false
 end
 
 function Env.getTargetPart(char)
@@ -364,3 +416,161 @@ function Env.getClosest(fovRadius)
     Env.vars.currentTarget = nil
     return nil, nil
 end
+
+local Camera = workspace.CurrentCamera
+local HitSound = Instance.new("Sound")
+HitSound.Volume = Env.cfg.hitsound.volume
+HitSound.Parent = Env.Services.SoundService
+
+function Env.spawnHitmark(worldPos, isHead)
+    if not Env.cfg.hitmarker.enabled then return end
+    local screenPos, onScreen = Camera:WorldToViewportPoint(worldPos)
+    if not onScreen then return end
+
+    local gui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    local container = Instance.new("Frame", gui)
+    container.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+    container.BackgroundTransparency = 1
+
+    local conf = Env.cfg.hitmarker
+    local color = isHead and Color3.new(1, 0, 0) or Color3.new(1, 1, 1)
+    local dist = isHead and conf.headExpand or conf.expand
+
+    for i = 1, 4 do
+        local angle = ({45, 135, 225, 315})[i]
+        local line = Instance.new("Frame", container)
+        line.BackgroundColor3 = color
+        line.BorderSizePixel = 0
+        line.Size = UDim2.new(0, conf.thickness, 0, conf.length)
+        line.AnchorPoint = Vector2.new(0.5, 0)
+        line.Rotation = angle
+        
+        local rad = math.rad(angle)
+        line.Position = UDim2.new(0, math.sin(rad) * conf.gap, 0, -math.cos(rad) * conf.gap)
+        
+        Env.Services.TweenService:Create(line, TweenInfo.new(0.2), {
+            Position = UDim2.new(0, math.sin(rad) * (conf.gap + dist), 0, -math.cos(rad) * (conf.gap + dist)),
+            BackgroundTransparency = 1
+        }):Play()
+    end
+    Env.Services.Debris:AddItem(gui, 0.25)
+end
+
+function Env.updateCrosshair()
+    task.spawn(function()
+        pcall(function()
+            local gui = LocalPlayer.PlayerGui:FindFirstChild("CrosshairGui")
+            if gui then
+                local frame = gui:FindFirstChild("CrosshairFrame")
+                if frame then
+                    local dot = frame:FindFirstChild("Dot")
+                    if dot and Env.cfg.crosshair.customImage ~= "" then
+                        dot.Image = "rbxassetid://" .. Env.cfg.crosshair.customImage
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+function Env.getEquippedTool()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    for _, v in ipairs(char:GetChildren()) do
+        if v:IsA("Tool") then return v end
+    end
+    return nil
+end
+
+function Env.getMuzzlePosition()
+    local tool = Env.getEquippedTool()
+    if not tool then return nil end
+    local muzzle = tool:FindFirstChild("Muzzle", true) or tool:FindFirstChild("MuzzleAttachment", true) or tool:FindFirstChild("Barrel", true)
+    if muzzle then
+        return muzzle:IsA("Attachment") and muzzle.WorldPosition or muzzle.Position
+    end
+    local handle = tool:FindFirstChild("Handle")
+    return handle and handle.Position or nil
+end
+
+function Env.createTracer(fromPos, toPos)
+    if not Env.cfg.tracer.enabled then return end
+    local p0 = Instance.new("Part", workspace)
+    p0.Anchored = true
+    p0.CanCollide = false
+    p0.Transparency = 1
+    p0.Size = Vector3.new(0.1, 0.1, 0.1)
+    p0.CFrame = CFrame.new(fromPos)
+    
+    local p1 = p0:Clone()
+    p1.CFrame = CFrame.new(toPos)
+    p1.Parent = workspace
+    
+    local a0 = Instance.new("Attachment", p0)
+    local a1 = Instance.new("Attachment", p1)
+    local beam = Instance.new("Beam", p0)
+    beam.Attachment0 = a0
+    beam.Attachment1 = a1
+    beam.Color = ColorSequence.new(Env.cfg.tracer.color)
+    beam.Width0 = Env.cfg.tracer.thickness
+    beam.Width1 = Env.cfg.tracer.thickness
+    beam.FaceCamera = true
+    beam.LightEmission = 1
+    
+    task.delay(Env.cfg.tracer.lifetime, function()
+        Env.Services.TweenService:Create(beam, TweenInfo.new(Env.cfg.tracer.fade), {Transparency = NumberSequence.new(1)}):Play()
+    end)
+    
+    Env.Services.Debris:AddItem(p0, Env.cfg.tracer.lifetime + Env.cfg.tracer.fade + 0.1)
+    Env.Services.Debris:AddItem(p1, Env.cfg.tracer.lifetime + Env.cfg.tracer.fade + 0.1)
+end
+
+local lastHitTime = 0
+function Env.playHitsound(hitPart)
+    if not Env.cfg.hitsound.enabled or not hitPart then return end
+    local char = hitPart:FindFirstAncestorOfClass("Model")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local plr = char and Players:GetPlayerFromCharacter(char)
+    
+    if hum and plr and plr ~= LocalPlayer and hum.Health > 0 then
+        local now = tick()
+        if now - lastHitTime < 0.05 then return end
+        lastHitTime = now
+        
+        local isHead = Env.isHeadshot(hitPart)
+        HitSound.SoundId = "rbxassetid://" .. (isHead and Env.cfg.hitsound.headshot or Env.cfg.hitsound.normal)
+        HitSound:Play()
+        
+        Env.spawnHitmark(hitPart.Position, isHead)
+    end
+end
+
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    if method == "FireServer" and self.Name == "ShootEvent" and Env.cfg.enabled then
+        task.spawn(function()
+            local shots = args[1]
+            if type(shots) ~= "table" then return end
+            local muzzlePos = Env.getMuzzlePosition()
+            if not muzzlePos then return end
+            
+            for i, shot in ipairs(shots) do
+                if type(shot) == "table" and #shot >= 2 then
+                    Env.createTracer(muzzlePos, shot[2])
+                    if i == 1 and shot[3] then
+                        Env.playHitsound(shot[3])
+                    end
+                end
+            end
+        end)
+    end
+    return old(self, ...)
+end)
+
+setreadonly(mt, true)
